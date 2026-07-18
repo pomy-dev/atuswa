@@ -1,0 +1,430 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
+import { useAuth } from '@/lib/auth-context'
+import { UserRole, Event } from '@/lib/types'
+import { Plus, Trash2, Calendar, MapPin, Upload, X, Users, Share2, Mail, MessageCircle } from 'lucide-react'
+
+interface Stakeholder {
+  id: string
+  name: string
+  profession: string
+  image?: string // base64 image
+}
+
+export default function EventsPage() {
+  const { user } = useAuth()
+  const [events, setEvents] = useState<Event[]>([])
+  const [showForm, setShowForm] = useState(false)
+
+  // Form Data
+  const [formData, setFormData] = useState({
+    title: '',
+    notes: '',
+    date: '',
+    location: '',
+  })
+
+  const [stakeholders, setStakeholders] = useState<Stakeholder[]>([])
+  const [newStakeholder, setNewStakeholder] = useState({
+    name: '',
+    profession: '',
+    imageFile: null as File | null,
+    previewUrl: '' as string,
+  })
+
+  // Load events
+  useEffect(() => {
+    if (!user) return
+    const allEvents: Event[] = JSON.parse(localStorage.getItem('events') || '[]')
+    const filtered = allEvents.filter((e: Event) =>
+      user.role === UserRole.SECRETARY_GENERAL || e.branchId === user.branchId
+    )
+    setEvents(filtered)
+  }, [user])
+
+  // Permission check
+  if (![UserRole.SECRETARY_GENERAL, UserRole.EVENTS_MANAGER, UserRole.BRANCH_ADMIN].includes(user?.role!)) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-muted-foreground">You don&apos;t have permission to view events.</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Handle image preview before adding stakeholder
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const previewUrl = URL.createObjectURL(file)
+    setNewStakeholder(prev => ({ ...prev, imageFile: file, previewUrl }))
+  }
+  
+  const addStakeholder = async () => {
+    if (!newStakeholder.name.trim() || !newStakeholder.profession.trim()) return
+
+    let imageUrl = ''
+    if (newStakeholder.imageFile) {
+      imageUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = (e) => resolve(e.target?.result as string)
+        reader.readAsDataURL(newStakeholder.imageFile!)
+      })
+    }
+
+    const stakeholder: Stakeholder = {
+      id: `sh_${Date.now()}`,
+      name: newStakeholder.name.trim(),
+      profession: newStakeholder.profession.trim(),
+      image: imageUrl || undefined,
+    }
+
+    setStakeholders([...stakeholders, stakeholder])
+
+    // Reset new stakeholder
+    setNewStakeholder({ name: '', profession: '', imageFile: null, previewUrl: '' })
+  }
+
+  const removeStakeholder = (id: string) => {
+    setStakeholders(stakeholders.filter(s => s.id !== id))
+  }
+
+  const handleAddEvent = () => {
+    if (!formData.title || !formData.date || !formData.location) return
+
+    const newEvent: Event = {
+      id: `event_${Date.now()}`,
+      branchId: user!.branchId,
+      title: formData.title,
+      notes: formData.notes,
+      date: new Date(formData.date),
+      location: formData.location,
+      stakeholders: stakeholders.map(s => s.name),
+      images: [],
+      documents: [],
+      invitations: [],
+      createdBy: user!.id,
+      createdAt: new Date(),
+    }
+
+    const allEvents = JSON.parse(localStorage.getItem('events') || '[]')
+    localStorage.setItem('events', JSON.stringify([...allEvents, newEvent]))
+
+    setEvents([...events, newEvent])
+    resetForm()
+  }
+
+  const resetForm = () => {
+    setFormData({ title: '', notes: '', date: '', location: '' })
+    setStakeholders([])
+    setShowForm(false)
+  }
+
+  const handleDelete = (id: string) => {
+    const allEvents = JSON.parse(localStorage.getItem('events') || '[]')
+    localStorage.setItem('events', JSON.stringify(allEvents.filter((e: Event) => e.id !== id)))
+    setEvents(events.filter(e => e.id !== id))
+  }
+
+  const isUpcoming = (date: Date) => new Date(date) > new Date()
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Events</h1>
+          <p className="text-muted-foreground mt-1">Manage union events and gatherings</p>
+        </div>
+        <Button onClick={() => setShowForm(true)} className="gap-2">
+          <Plus className="w-4 h-4" />
+          New Event
+        </Button>
+      </div>
+
+      {showForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Create New Event</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Event Details */}
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <Label>Event Title</Label>
+                <Input
+                  placeholder="Annual General Meeting"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Date & Time</Label>
+                <Input
+                  type="datetime-local"
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label>Location</Label>
+              <Input
+                placeholder="Lagos Convention Center"
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <Label>Notes</Label>
+              <Textarea
+                placeholder="Event description and additional notes..."
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                rows={3}
+              />
+            </div>
+
+            {/* === STAKEHOLDERS WITH IMAGE UPLOAD & PREVIEW === */}
+            <div className="border rounded-xl p-5 bg-muted/30">
+              <Label className="text-lg font-semibold mb-4 block">Stakeholders</Label>
+
+              <div className="flex gap-3 mb-6">
+                <Input
+                  placeholder="Full Name"
+                  value={newStakeholder.name}
+                  onChange={(e) => setNewStakeholder({ ...newStakeholder, name: e.target.value })}
+                />
+                <Input
+                  placeholder="Profession / Position"
+                  value={newStakeholder.profession}
+                  onChange={(e) => setNewStakeholder({ ...newStakeholder, profession: e.target.value })}
+                />
+
+                <label className="cursor-pointer">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => document.getElementById('stakeholder-photo')?.click()}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    {newStakeholder.imageFile ? 'Change Photo' : 'Upload Photo'}
+                  </Button>
+                  <input
+                    id="stakeholder-photo"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageSelect}
+                  />
+                </label>
+                <Button onClick={addStakeholder} disabled={!newStakeholder.name || !newStakeholder.profession}>Add Stakeholder</Button>
+              </div>
+
+              {/* Current Stakeholder Image Preview */}
+              {/* Live Preview of Selected Image */}
+              {newStakeholder.previewUrl && (
+                <div className="mb-6 p-4 border rounded-lg bg-white">
+                  <p className="text-sm text-muted-foreground font-medium mb-3">Selected Photo Preview:</p>
+                  <div className="flex items-center gap-4">
+                    <img
+                      src={newStakeholder.previewUrl}
+                      alt="Preview"
+                      className="w-28 h-28 rounded-2xl object-cover border shadow-md"
+                    />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Ready to add</p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="mt-2 text-red-600 hover:text-red-700"
+                        onClick={() => setNewStakeholder(prev => ({ ...prev, imageFile: null, previewUrl: '' }))}
+                      >
+                        Remove Photo
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Added Stakeholders Preview Grid */}
+              {stakeholders.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {stakeholders.map((sh) => (
+                    <div key={sh.id} className="border rounded-xl p-4 flex gap-4 items-center bg-white">
+                      {sh.image ? (
+                        <img
+                          src={sh.image}
+                          alt={sh.name}
+                          className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-3xl">
+                          👤
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <p className="font-semibold text-muted-foreground">{sh.name}</p>
+                        <p className="text-sm text-muted-foreground">{sh.profession}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeStakeholder(sh.id)}
+                        className="text-red-500 hover:bg-red-50"
+                      >
+                        <X className="h-5 w-5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button onClick={handleAddEvent} size="lg">Create Event</Button>
+              <Button variant="outline" size="lg" onClick={resetForm}>Cancel</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Event lists */}
+      <div className="grid gap-4">
+        {events.length === 0 ? (
+          <Card>
+            <CardContent className="pt-6 text-center text-muted-foreground">
+              No events found
+            </CardContent>
+          </Card>
+        ) : (
+          events.map((event) => (
+            <Card key={event.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xl font-semibold">{event.title}</h3>
+                      {isUpcoming(event.date) ? (
+                        <Badge>Upcoming</Badge>
+                      ) : (
+                        <Badge variant="secondary">Past</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => handleDelete(event.id)} className="text-destructive">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="w-4 h-4" />
+                    {new Date(event.date).toLocaleString()}
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPin className="w-4 h-4" />
+                    {event.location}
+                  </div>
+                  {event.notes && (
+                    <p className="text-sm text-muted-foreground">{event.notes}</p>
+                  )}
+                </div>
+
+                {event.notes && <p className="mb-5">{event.notes}</p>}
+
+                {/* Stakeholders Preview */}
+                {event.stakeholders?.length > 0 && (
+                  <div className="mb-6">
+                    <p className="text-xs font-semibold mb-3 flex items-center gap-2">
+                      <Users className="w-4 h-4" /> STAKEHOLDERS ({event.stakeholders.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {event.stakeholders.map((name, i) => (
+                        <Badge key={i} variant="outline" className="text-sm">
+                          {name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Share Section */}
+                <div className="space-y-3 pt-4 border-t">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    <span className="text-sm">Share Event</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 gap-2"
+                      onClick={() => {
+                        const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
+                        window.open(`mailto:?subject=${event.title}&body=${text}`, '_blank')
+                      }}
+                    >
+                      <Mail className="w-3 h-3" />
+                      Email
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 gap-2"
+                      onClick={() => {
+                        const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
+                        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+                      }}
+                    >
+                      <MessageCircle className="w-3 h-3" />
+                      WhatsApp
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 gap-2"
+                      onClick={() => {
+                        const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
+                        if (navigator.share) {
+                          navigator.share({
+                            title: event.title,
+                            text: text,
+                            url: window.location.href
+                          })
+                        } else {
+                          window.open(`https://www.facebook.com/sharer/sharer.php?u=${window.location.href}&quote=${encodeURIComponent(text)}`, '_blank')
+                        }
+                      }}
+                    >
+                      <Share2 className="w-3 h-3" />
+                      Share
+                    </Button>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    <strong>Invites: {event.stakeholders?.length || 0}</strong> people invited
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+
+
+      </div>
+    </div >
+  )
+}
