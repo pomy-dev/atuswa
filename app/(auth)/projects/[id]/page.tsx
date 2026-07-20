@@ -17,7 +17,7 @@ import {
   ProjectTeamMember,
   ProjectResource
 } from '@/lib/types'
-import { ArrowLeft, Plus, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Users, Download, Loader } from 'lucide-react'
 
 type Params = Promise<{ id: string }>
 
@@ -28,6 +28,8 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
   const [newPhaseName, setNewPhaseName] = useState('')
   const [newTeamMember, setNewTeamMember] = useState({ userId: '', role: '' })
   const [newResource, setNewResource] = useState({ name: '', quantity: 1, unit: '', cost: 0 })
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
 
   const { id } = React.use(params)
 
@@ -155,8 +157,11 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
     if (!e.target.files || !project) return
 
     const files = Array.from(e.target.files)
-    // In a real app you would upload to a server and get URLs.
-    // Here we simulate with object URLs + base64 for localStorage.
+    setIsUploading(true)
+    setUploadProgress(0)
+
+    let completed = 0
+    const totalFiles = files.length
 
     files.forEach(file => {
       const reader = new FileReader()
@@ -165,7 +170,8 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
           id: Date.now().toString() + Math.random().toString(36).slice(2),
           name: file.name,
           url: ev.target?.result as string,
-          uploadedAt: new Date()
+          uploadedAt: new Date(),
+          size: file.size
         }
 
         if (type === 'image') {
@@ -173,9 +179,36 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
         } else {
           saveProject({ ...project, documents: [...project.documents, newFile] })
         }
+
+        completed++
+        setUploadProgress(Math.round((completed / totalFiles) * 100))
+
+        if (completed === totalFiles) {
+          setIsUploading(false)
+          setUploadProgress(0)
+        }
       }
       reader.readAsDataURL(file)
     })
+
+    e.target.value = ''
+  }
+
+  // Delete file
+  const handleDeleteFile = (type: 'image' | 'document', fileId: string) => {
+    if (!project) return
+
+    if (type === 'image') {
+      saveProject({
+        ...project,
+        images: project.images.filter(img => img.id !== fileId)
+      })
+    } else {
+      saveProject({
+        ...project,
+        documents: project.documents.filter(doc => doc.id !== fileId)
+      })
+    }
   }
 
   if (!project) {
@@ -258,45 +291,96 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
             {/* Project Files */}
             <div className="space-y-6">
               <div>
-                <div className="flex justify-between mb-3">
-                  <h3 className="font-semibold">Images</h3>
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="font-semibold">Images ({project.images.length})</h3>
                   <label>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" disabled={isUploading}>
+                      {isUploading ? <Loader className="w-4 h-4 animate-spin mr-2" /> : null}
                       <span>Upload Image</span>
                     </Button>
-                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload('image')} />
+                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload('image')} disabled={isUploading} />
                   </label>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {project.images.map(img => (
-                    <div key={img.id} className="border rounded-lg overflow-hidden">
-                      <img src={img.url} alt={img.name} className="w-full h-32 object-cover" />
-                      <div className="p-2 text-xs truncate">{img.name}</div>
+
+                {isUploading && uploadProgress > 0 && (
+                  <div className="mb-4">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Uploading...</span>
+                      <span>{uploadProgress}%</span>
                     </div>
-                  ))}
-                </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${uploadProgress}%` }}></div>
+                    </div>
+                  </div>
+                )}
+
+                {project.images.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4">No images uploaded yet</p>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {project.images.map(img => (
+                      <div key={img.id} className="border rounded-lg overflow-hidden hover:shadow-lg transition group">
+                        <div className="relative">
+                          <img src={img.url} alt={img.name} className="w-full h-32 object-cover" />
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition h-6 w-6"
+                            onClick={() => handleDeleteFile('image', img.id)}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        <div className="p-2">
+                          <p className="text-xs truncate font-medium" title={img.name}>{img.name}</p>
+                          <p className="text-xs text-muted-foreground">{(img.size / 1024).toFixed(0)} KB</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
-                <div className="flex justify-between mb-3">
-                  <h3 className="font-semibold">Documents</h3>
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="font-semibold">Documents ({project.documents.length})</h3>
                   <label>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" disabled={isUploading}>
+                      {isUploading ? <Loader className="w-4 h-4 animate-spin mr-2" /> : null}
                       <span>Upload Document</span>
                     </Button>
-                    <input type="file" multiple className="hidden" onChange={handleFileUpload('document')} />
+                    <input type="file" multiple className="hidden" onChange={handleFileUpload('document')} disabled={isUploading} />
                   </label>
                 </div>
-                <div className="space-y-2">
-                  {project.documents.map(doc => (
-                    <div key={doc.id} className="flex items-center justify-between border p-3 rounded-lg">
-                      <span>{doc.name}</span>
-                      <Button variant="ghost" size="sm" onClick={() => window.open(doc.url, '_blank')}>
-                        View
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+
+                {project.documents.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4">No documents uploaded yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {project.documents.map(doc => (
+                      <div key={doc.id} className="flex items-center justify-between border p-4 rounded-lg hover:bg-muted/50 transition group">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate" title={doc.name}>{doc.name}</p>
+                          <p className="text-xs text-muted-foreground">{(doc.size / 1024).toFixed(0)} KB • {new Date(doc.uploadedAt).toLocaleDateString()}</p>
+                        </div>
+                        <div className="flex items-center gap-2 ml-2">
+                          <Button variant="outline" size="sm" onClick={() => window.open(doc.url, '_blank')} className="gap-2">
+                            <Download className="w-3 h-3" />
+                            <span className="hidden sm:inline">Download</span>
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteFile('document', doc.id)}
+                            className="opacity-0 group-hover:opacity-100 transition"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
