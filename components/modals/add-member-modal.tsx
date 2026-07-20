@@ -21,11 +21,11 @@ interface AddMemberModalProps {
 export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branchId }: AddMemberModalProps) {
   const { user } = useAuth()
   const [branches] = useState([
-    { id: 'lagos', name: 'Lagos Branch' },
-    { id: 'abuja', name: 'Abuja Branch' },
-    { id: 'port-harcourt', name: 'Port Harcourt Branch' }
+    { id: 'lagos', name: 'Manzini Branch' },
+    { id: 'abuja', name: 'Siteki Branch' },
+    { id: 'port-harcourt', name: 'Mhlume Branch' }
   ])
-  
+
   const [formData, setFormData] = useState({
     memberId: '',
     name: '',
@@ -212,21 +212,19 @@ export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branch
             <Label htmlFor="branch">Branch *</Label>
             {user?.role === UserRole.BRANCH_ADMIN ? (
               <div className="px-3 py-2 border border-border rounded-md text-sm bg-muted">
-                {branches.find(b => b.id === user.branchId)?.name || 'Selected Branch'}
+                {branches.find(b => b.id === user.branchId)?.name ?? 'Selected Branch'}
               </div>
             ) : (
-              <Select value={formData.selectedBranch} onValueChange={(value) => setFormData({ ...formData, selectedBranch: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  {branches.map(branch => (
-                    <SelectItem key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select value={formData.selectedBranch} onChange={(e) => setFormData({ ...formData, selectedBranch: e.target.value })}
+                className='w-full px-3 py-2 border border-border rounded-md text-sm'
+              >
+                <option value=''>Select a branch</option>
+                {branches.map(branch => (
+                  <option key={branch.id} value={branch.name}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
             )}
           </div>
 

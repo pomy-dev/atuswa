@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { Share2, Heart, CheckCircle, Clock, AlertCircle, Mail, MessageCircle } from 'lucide-react'
+import { Heart, CheckCircle, Clock, AlertCircle, Mail, MessageCircle } from 'lucide-react'
 import Twitter from '@/public/twitter.png'
 import Facebook from '@/public/facebook.png'
 import { Member, HelpDeskCase } from '@/lib/types'
@@ -351,7 +351,7 @@ export default function PublicWebsite() {
                         {project.budget && (
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Budget:</span>
-                            <span className="font-semibold">₦{project.budget?.toLocaleString()}</span>
+                            <span className="font-semibold">E{project.budget?.toLocaleString()}</span>
                           </div>
                         )}
                         {project.startDate && (

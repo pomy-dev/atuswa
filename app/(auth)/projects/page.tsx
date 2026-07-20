@@ -44,8 +44,11 @@ export default function ProjectsPage() {
 
   const statusColors: Record<ProjectStatus, string> = {
     [ProjectStatus.PLANNING]: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
+    [ProjectStatus.STARTING]: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
     [ProjectStatus.ONGOING]: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
-    [ProjectStatus.COMPLETED]: 'bg-green-500/20 text-green-700 dark:text-green-400'
+    [ProjectStatus.IN_PROGRESS]: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
+    [ProjectStatus.COMPLETED]: 'bg-green-500/20 text-green-700 dark:text-green-400',
+    [ProjectStatus.FINISHED]: 'bg-green-500/20 text-green-700 dark:text-green-400',
   }
 
   const handleAddProject = () => {
@@ -196,7 +199,7 @@ export default function ProjectsPage() {
 
                 <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
                   <Calendar className="w-4 h-4" />
-                  <span>Started: {new Date(project.startDate).toLocaleDateString()}</span>
+                  <span>Started: {new Date(project?.startDate).toLocaleDateString()}</span>
                 </div>
 
                 <div className="space-y-2">
