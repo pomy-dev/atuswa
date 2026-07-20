@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
 import { UserRole, FinancialRecord, TransactionType } from '@/lib/types'
-import { Plus, TrendingUp, TrendingDown, Trash2 } from 'lucide-react'
+import { Plus, TrendingUp, TrendingDown, Trash2, Calendar } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { AddFinancialModal } from '@/components/modals/add-financial-modal'
 
@@ -19,6 +22,10 @@ export default function FinancialPage() {
   )
   const [showAddFinancialModal, setShowAddFinancialModal] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
 
   // Can only access if Secretary General or Treasurer
   if (![UserRole.SECRETARY_GENERAL, UserRole.TREASURER].includes(user?.role!)) {
@@ -63,6 +70,35 @@ export default function FinancialPage() {
     localStorage.setItem('financialRecords', JSON.stringify(updated))
     setRecords(records.filter(r => r.id !== id))
   }
+
+  const filteredAndSortedRecords = useMemo(() => {
+    let filtered = records.filter(r => {
+      const matchType = filterType === 'all' || 
+        (filterType === 'income' && r.type === TransactionType.INCOME) ||
+        (filterType === 'expense' && r.type === TransactionType.EXPENSE)
+      
+      const recordDate = new Date(r.date)
+      let matchDate = true
+
+      if (startDate) {
+        const start = new Date(startDate)
+        matchDate = matchDate && recordDate >= start
+      }
+
+      if (endDate) {
+        const end = new Date(endDate)
+        end.setHours(23, 59, 59, 999)
+        matchDate = matchDate && recordDate <= end
+      }
+
+      return matchType && matchDate
+    })
+
+    return filtered.sort((a, b) => {
+      const comparison = new Date(a.date).getTime() - new Date(b.date).getTime()
+      return sortOrder === 'asc' ? comparison : -comparison
+    })
+  }, [records, filterType, startDate, endDate, sortOrder])
 
   return (
     <div className="p-6 space-y-6">
@@ -136,14 +172,82 @@ export default function FinancialPage() {
       <Card>
         <CardHeader>
           <CardTitle>Transaction History</CardTitle>
-          <CardDescription>{records.length} total transactions</CardDescription>
+          <CardDescription>{filteredAndSortedRecords.length} of {records.length} transactions</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Filter Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 pb-4 border-b">
+            <div>
+              <Label className="text-xs mb-1 block">Type</Label>
+              <Select value={filterType} onValueChange={(value: any) => setFilterType(value)}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Transactions</SelectItem>
+                  <SelectItem value="income">Income Only</SelectItem>
+                  <SelectItem value="expense">Expense Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs mb-1 block">Start Date</Label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="text-sm"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs mb-1 block">End Date</Label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="text-sm"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs mb-1 block">Sort</Label>
+              <Select value={sortOrder} onValueChange={(value: any) => setSortOrder(value)}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desc">Newest First</SelectItem>
+                  <SelectItem value="asc">Oldest First</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFilterType('all')
+                  setSortOrder('desc')
+                  setStartDate('')
+                  setEndDate('')
+                }}
+                className="w-full"
+              >
+                Reset
+              </Button>
+            </div>
+          </div>
+
           <div className="space-y-2">
-            {records.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No financial records yet</p>
+            {filteredAndSortedRecords.length === 0 ? (
+              <p className="text-muted-foreground text-sm py-4">
+                {records.length === 0 ? 'No financial records yet' : 'No transactions match your filters'}
+              </p>
             ) : (
-              records.map((record) => (
+              filteredAndSortedRecords.map((record) => (
                 <div key={record.id} className="flex items-center justify-between p-3 bg-secondary/10 rounded-lg">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">

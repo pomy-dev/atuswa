@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { Users, DollarSign, Briefcase, AlertCircle, Plus, Trash2, CheckCircle, Clock } from 'lucide-react'
+import { Users, DollarSign, Briefcase, AlertCircle, Plus, Trash2, CheckCircle, Clock, Image as ImageIcon } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 
 export default function DashboardPage() {
@@ -20,13 +20,51 @@ export default function DashboardPage() {
     title: '',
     content: '',
     category: 'General',
-    published: false
+    published: false,
+    featuredImage: null as any,
+    featuredImageCaption: '',
+    attachedFiles: [] as any[]
   })
 
   useMemo(() => {
     const stored = JSON.parse(localStorage.getItem('articles') || '[]')
     setArticles(stored)
   }, [activeTab === 'articles'])
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setArticleForm(prev => ({
+        ...prev,
+        featuredImage: ev.target?.result as string
+      }))
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+
+    Array.from(files).forEach(file => {
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        setArticleForm(prev => ({
+          ...prev,
+          attachedFiles: [...prev.attachedFiles, {
+            name: file.name,
+            url: ev.target?.result as string,
+            caption: ''
+          }]
+        }))
+      }
+      reader.readAsDataURL(file)
+    })
+    e.target.value = ''
+  }
 
   const handleAddArticle = () => {
     if (!articleForm.title.trim() || !articleForm.content.trim()) {
@@ -40,6 +78,9 @@ export default function DashboardPage() {
       content: articleForm.content,
       category: articleForm.category,
       published: articleForm.published,
+      featuredImage: articleForm.featuredImage,
+      featuredImageCaption: articleForm.featuredImageCaption,
+      attachedFiles: articleForm.attachedFiles,
       createdBy: user?.name,
       createdAt: new Date().toISOString()
     }
@@ -47,7 +88,7 @@ export default function DashboardPage() {
     const allArticles = [...articles, newArticle]
     localStorage.setItem('articles', JSON.stringify(allArticles))
     setArticles(allArticles)
-    setArticleForm({ title: '', content: '', category: 'General', published: false })
+    setArticleForm({ title: '', content: '', category: 'General', published: false, featuredImage: null, featuredImageCaption: '', attachedFiles: [] })
     setShowArticleForm(false)
   }
 
@@ -352,6 +393,103 @@ export default function DashboardPage() {
                     <option value="Resources">Resources</option>
                   </select>
                 </div>
+
+                <div>
+                  <Label htmlFor="featuredImage">Featured Image</Label>
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <label>
+                        <Button type="button" variant="outline" className="w-full">
+                          Choose Image
+                        </Button>
+                        <input
+                          id="featuredImage"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                    {articleForm.featuredImage && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setArticleForm({ ...articleForm, featuredImage: null })}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                  {articleForm.featuredImage && (
+                    <div className="mt-2">
+                      <img src={articleForm.featuredImage} alt="Featured" className="w-full h-40 object-cover rounded" />
+                    </div>
+                  )}
+                </div>
+
+                {articleForm.featuredImage && (
+                  <div>
+                    <Label htmlFor="imageCaption">Image Caption</Label>
+                    <Input
+                      id="imageCaption"
+                      placeholder="Add a caption for the featured image"
+                      value={articleForm.featuredImageCaption}
+                      onChange={(e) => setArticleForm({ ...articleForm, featuredImageCaption: e.target.value })}
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <Label>Attach Files</Label>
+                  <label>
+                    <Button type="button" variant="outline" className="w-full">
+                      Upload Files
+                    </Button>
+                    <input
+                      type="file"
+                      multiple
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {articleForm.attachedFiles.length > 0 && (
+                  <div>
+                    <Label className="mb-2 block">Attached Files ({articleForm.attachedFiles.length})</Label>
+                    <div className="space-y-2">
+                      {articleForm.attachedFiles.map((file, idx) => (
+                        <div key={idx} className="p-3 border rounded-lg space-y-2 bg-muted/30">
+                          <div className="flex justify-between items-start">
+                            <p className="text-sm font-medium truncate">{file.name}</p>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setArticleForm(prev => ({
+                                ...prev,
+                                attachedFiles: prev.attachedFiles.filter((_, i) => i !== idx)
+                              }))}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                          <Input
+                            placeholder="Add caption for this file"
+                            value={file.caption}
+                            onChange={(e) => {
+                              const updated = [...articleForm.attachedFiles]
+                              updated[idx].caption = e.target.value
+                              setArticleForm(prev => ({ ...prev, attachedFiles: updated }))
+                            }}
+                            className="text-xs"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-2">
                   <input
