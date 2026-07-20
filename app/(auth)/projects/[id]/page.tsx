@@ -38,6 +38,11 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
     const found = projects.find((p: Project) => p.id === id)
 
     if (found) {
+      found.phases = found.phases.map((phase) => ({
+        ...phase,
+        status: phase.status ?? ProjectStatus.STARTING,
+      }))
+
       setProject(found)
     }
   }, [id])
@@ -178,9 +183,12 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
   }
 
   const statusColors: Record<ProjectStatus, string> = {
+    [ProjectStatus.STARTING]: 'bg-yellow-100 text-yellow-800',
     [ProjectStatus.PLANNING]: 'bg-yellow-100 text-yellow-800',
     [ProjectStatus.ONGOING]: 'bg-blue-100 text-blue-800',
-    [ProjectStatus.COMPLETED]: 'bg-green-100 text-green-800'
+    [ProjectStatus.IN_PROGRESS]: 'bg-blue-100 text-blue-800',
+    [ProjectStatus.COMPLETED]: 'bg-green-100 text-green-800',
+    [ProjectStatus.FINISHED]: 'bg-green-100 text-green-800',
   }
 
   return (
@@ -351,9 +359,9 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={ProjectStatus.PLANNING}>Planning</SelectItem>
-                        <SelectItem value={ProjectStatus.ONGOING}>Ongoing</SelectItem>
-                        <SelectItem value={ProjectStatus.COMPLETED}>Completed</SelectItem>
+                        <SelectItem value={ProjectStatus.STARTING}>Starting</SelectItem>
+                        <SelectItem value={ProjectStatus.IN_PROGRESS}>In Progress</SelectItem>
+                        <SelectItem value={ProjectStatus.FINISHED}>Finished</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

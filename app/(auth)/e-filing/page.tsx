@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useUploadThing } from '@/utils/uploathing'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,20 +10,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
 import { UserRole, EFileFolder, EFile } from '@/lib/types'
-import { Plus, Folder, File, Trash2, FolderPlus, Download, AlertCircle } from 'lucide-react'
+import { saveFile, deleteFile, getFolderFiles } from "@/utils/file-storage";
+import { Plus, Folder, File, FileArchive, FileCode, FileImage, FileText, FileSpreadsheet, Trash2, FolderPlus, Download, AlertCircle } from 'lucide-react'
 
 export default function EFilingPage() {
   const { user } = useAuth()
-  const [folders, setFolders] = useState<EFileFolder[]>(() =>
-    JSON.parse(localStorage.getItem('efilesFolders') || '[]').filter((f: EFileFolder) =>
-      user?.role === UserRole.SECRETARY_GENERAL || f.branchId === user?.branchId
-    )
-  )
-  const [files, setFiles] = useState<EFile[]>(() =>
-    JSON.parse(localStorage.getItem('efiles') || '[]').filter((f: EFile) =>
-      user?.role === UserRole.SECRETARY_GENERAL || f.branchId === user?.branchId
-    )
-  )
+  const [folders, setFolders] = useState<EFileFolder[]>([])
+  const [files, setFiles] = useState<EFile[]>([]);
 
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [showNewFolder, setShowNewFolder] = useState(false)
@@ -33,7 +25,6 @@ export default function EFilingPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
 
-  const { startUpload } = useUploadThing("efilingUploader");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Can only access if authorized
@@ -48,6 +39,17 @@ export default function EFilingPage() {
       </div>
     )
   }
+
+  useEffect(() => {
+    if (!selectedFolder) return;
+
+    async function load() {
+      const files = await getFolderFiles(selectedFolder);
+      setFiles(files);
+    }
+
+    load();
+  }, [selectedFolder]);
 
   const handleAddFolder = () => {
     if (!folderName.trim()) return
@@ -84,64 +86,112 @@ export default function EFilingPage() {
     if (selectedFolder === id) setSelectedFolder(null)
   }
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     if (!selectedFolder) {
-      setUploadError('Please select a folder first');
+      setUploadError("Please select a folder first");
       return;
     }
 
-    const fileList = e.currentTarget.files;
-    if (!fileList || fileList.length === 0) return;
+    const input = e.currentTarget;
+    const files = input.files;
+
+    if (!files) return;
 
     setIsUploading(true);
-    setUploadError('');
 
     try {
-      const filesArray = Array.from(fileList);
-
-      const uploadedFiles = await startUpload(filesArray);
-
-      if (!uploadedFiles || uploadedFiles.length === 0) {
-        setUploadError("Upload failed - no response from server");
-        return;
-      }
-
-      uploadedFiles.forEach((uploadedFile, i) => {
-        const originalFile = filesArray[i];
-
-        const newFile: EFile = {
-          id: `file_${Date.now()}_${i}`,
-          branchId: user!.branchId,
-          name: uploadedFile.name,
+      for (const file of Array.from(files)) {
+        const stored = {
+          id: crypto.randomUUID(),
+          name: file.name,
           folderId: selectedFolder,
-          url: uploadedFile.url,
-          type: originalFile.type || 'application/octet-stream',
-          size: uploadedFile.size,
+          branchId: user!.branchId,
           uploadedBy: user!.name,
-          uploadedAt: new Date()
+          uploadedAt: new Date(),
+          type: file.type,
+          size: file.size,
+          file,
         };
 
-        const allFiles = JSON.parse(localStorage.getItem("efiles") || "[]");
-        localStorage.setItem("efiles", JSON.stringify([...allFiles, newFile]));
-        setFiles(prev => [...prev, newFile]);
-      });
-    } catch (error: any) {
-      console.error("Upload error:", error);
-      setUploadError(error.message || "Upload failed");
+        await saveFile(stored);
+
+        setFiles(prev => [...prev, stored]);
+      }
     } finally {
       setIsUploading(false);
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
+      input.value = "";
     }
   };
 
-  const handleDeleteFile = (id: string) => {
-    const allFiles = JSON.parse(localStorage.getItem('efiles') || '[]')
-    const updated = allFiles.filter((f: EFile) => f.id !== id)
-    localStorage.setItem('efiles', JSON.stringify(updated))
-    setFiles(files.filter(f => f.id !== id))
+  const handleDeleteFile = async (id: string) => {
+    await deleteFile(id);
+
+    setFiles(prev => prev.filter(f => f.id !== id));
   }
+
+  const getFileIcon = (type: string, name: string) => {
+    const extension = name.split(".").pop()?.toLowerCase();
+
+    // Images
+    if (type.startsWith("image/")) {
+      return <FileImage className="w-5 h-5 text-blue-500" />;
+    }
+
+    // PDFs
+    if (type === "application/pdf" || extension === "pdf") {
+      return <FileText className="w-5 h-5 text-red-500" />;
+    }
+
+    // Word
+    if (
+      type.includes("word") ||
+      extension === "doc" ||
+      extension === "docx"
+    ) {
+      return <FileText className="w-5 h-5 text-blue-700" />;
+    }
+
+    // Excel
+    if (
+      type.includes("spreadsheet") ||
+      type.includes("excel") ||
+      extension === "xls" ||
+      extension === "xlsx" ||
+      extension === "csv"
+    ) {
+      return <FileSpreadsheet className="w-5 h-5 text-green-600" />;
+    }
+
+    // Zip
+    if (
+      type.includes("zip") ||
+      extension === "zip" ||
+      extension === "rar" ||
+      extension === "7z"
+    ) {
+      return <FileArchive className="w-5 h-5 text-orange-500" />;
+    }
+
+    // Code
+    if (
+      [
+        "ts",
+        "tsx",
+        "js",
+        "jsx",
+        "json",
+        "html",
+        "css",
+        "sql",
+      ].includes(extension ?? "")
+    ) {
+      return <FileCode className="w-5 h-5 text-purple-500" />;
+    }
+
+    return <File className="w-5 h-5 text-gray-500" />;
+  };
 
   const selectedFolderData = selectedFolder ? folders.find(f => f.id === selectedFolder) : null
   const folderFiles = selectedFolder ? files.filter(f => f.folderId === selectedFolder) : []
@@ -320,30 +370,44 @@ export default function EFilingPage() {
                     className="flex items-center justify-between p-3 bg-secondary/10 rounded-lg hover:bg-secondary/20 transition-colors"
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <File className="w-4 h-4 flex-shrink-0" />
+                      {getFileIcon(file.type, file.name)}
                       <div className="flex-1 min-w-0">
-                        <a
-                          href={file.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-medium text-primary hover:underline truncate block"
+                        <Button
+                          variant="link"
+                          className="p-0 h-auto"
+                          onClick={() => {
+                            const url = URL.createObjectURL(file.file);
+
+                            window.open(url, "_blank");
+
+                            setTimeout(() => URL.revokeObjectURL(url), 5000);
+                          }}
                         >
                           {file.name}
-                        </a>
+                        </Button>
                         <p className="text-xs text-muted-foreground">
                           {file.size ? `${(file.size / 1024).toFixed(2)} KB` : 'Unknown'} • Uploaded by {file.uploadedBy}
                         </p>
                       </div>
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
-                      <a
-                        href={file.url}
-                        download
-                        className="p-2 hover:bg-secondary/50 rounded-lg transition-colors"
-                        title="Download"
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          const url = URL.createObjectURL(file.file);
+
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = file.name;
+
+                          a.click();
+
+                          URL.revokeObjectURL(url);
+                        }}
                       >
                         <Download className="w-4 h-4" />
-                      </a>
+                      </Button>
                       <Button
                         size="sm"
                         variant="ghost"

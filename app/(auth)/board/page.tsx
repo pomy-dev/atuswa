@@ -1,10 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
 import { UserRole, BoardMember } from '@/lib/types'
@@ -32,24 +30,6 @@ export default function BoardPage() {
     )
   }
 
-  const handleAddMember = () => {
-    if (!formData.name || !formData.position) return
-
-    const newMember: BoardMember = {
-      id: `board_${Date.now()}`,
-      ...formData,
-      branchId: user!.branchId,
-      isAdmin: false,
-      createdAt: new Date()
-    }
-
-    const updated = [...members, newMember]
-    setMembers(updated)
-    localStorage.setItem('boardMembers', JSON.stringify(updated))
-    setFormData({ name: '', email: '', position: '', responsibilities: '' })
-    setShowForm(false)
-  }
-
   const handleDelete = (id: string) => {
     const updated = members.filter(m => m.id !== id)
     setMembers(updated)
@@ -68,57 +48,6 @@ export default function BoardPage() {
           Add Member
         </Button>
       </div>
-
-      {showForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Add Board Member</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                placeholder="e.g., Amara Obi"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="email@example.com"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="position">Position</Label>
-              <Input
-                id="position"
-                placeholder="e.g., Vice Secretary"
-                value={formData.position}
-                onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="responsibilities">Responsibilities</Label>
-              <Input
-                id="responsibilities"
-                placeholder="Primary duties and responsibilities"
-                value={formData.responsibilities}
-                onChange={(e) => setFormData({ ...formData, responsibilities: e.target.value })}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleAddMember}>Add Member</Button>
-              <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid gap-4">
         {members.map((member) => (

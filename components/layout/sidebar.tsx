@@ -44,7 +44,7 @@ export function Sidebar() {
       roles: [UserRole.SECRETARY_GENERAL]
     },
     {
-      label: 'Members',
+      label: 'NEC Members',
       href: '/members',
       icon: Users,
       roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN]
@@ -68,7 +68,7 @@ export function Sidebar() {
       roles: [UserRole.SECRETARY_GENERAL, UserRole.EVENTS_MANAGER, UserRole.BRANCH_ADMIN]
     },
     {
-      label: 'Helpdesk',
+      label: 'Grievances',
       href: '/helpdesk',
       icon: LifeBuoy,
       roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.TREASURER]

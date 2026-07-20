@@ -3,13 +3,11 @@
 import { useState, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
-import { UserRole, FinancialRecord, TransactionType, IncomeSource, ExpenseCategory } from '@/lib/types'
+import { UserRole, FinancialRecord, TransactionType } from '@/lib/types'
 import { Plus, TrendingUp, TrendingDown, Trash2 } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { AddFinancialModal } from '@/components/modals/add-financial-modal'
 
 export default function FinancialPage() {
@@ -19,16 +17,8 @@ export default function FinancialPage() {
       user?.role === UserRole.SECRETARY_GENERAL || r.branchId === user?.branchId
     )
   )
-  const [showForm, setShowForm] = useState(false)
   const [showAddFinancialModal, setShowAddFinancialModal] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [type, setType] = useState<TransactionType>(TransactionType.INCOME)
-  const [formData, setFormData] = useState({
-    amount: '',
-    source: IncomeSource.SUBSCRIPTION,
-    category: ExpenseCategory.UTILITIES,
-    description: ''
-  })
 
   // Can only access if Secretary General or Treasurer
   if (![UserRole.SECRETARY_GENERAL, UserRole.TREASURER].includes(user?.role!)) {
@@ -66,29 +56,6 @@ export default function FinancialPage() {
       amount: value
     }))
   }, [records])
-
-  const handleAddRecord = () => {
-    if (!formData.amount || !formData.description) return
-
-    const newRecord: FinancialRecord = {
-      id: `fin_${Date.now()}`,
-      branchId: user!.branchId,
-      type,
-      amount: parseInt(formData.amount),
-      source: type === TransactionType.INCOME ? (formData.source as IncomeSource) : undefined,
-      category: type === TransactionType.EXPENSE ? (formData.category as ExpenseCategory) : undefined,
-      description: formData.description,
-      date: new Date(),
-      createdBy: user!.id
-    }
-
-    const allRecords = JSON.parse(localStorage.getItem('financialRecords') || '[]')
-    const updated = [...allRecords, newRecord]
-    localStorage.setItem('financialRecords', JSON.stringify(updated))
-    setRecords([...records, newRecord])
-    setFormData({ amount: '', source: IncomeSource.SUBSCRIPTION, category: ExpenseCategory.UTILITIES, description: '' })
-    setShowForm(false)
-  }
 
   const handleDelete = (id: string) => {
     const allRecords = JSON.parse(localStorage.getItem('financialRecords') || '[]')
@@ -158,100 +125,9 @@ export default function FinancialPage() {
                 <XAxis dataKey="name" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="amount" fill="hsl(var(--color-accent))" />
+                <Bar dataKey="amount" fill="#5837a6ff" />
               </BarChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {showForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Add Financial Record</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    checked={type === TransactionType.INCOME}
-                    onChange={() => setType(TransactionType.INCOME)}
-                  />
-                  <span>Income</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    checked={type === TransactionType.EXPENSE}
-                    onChange={() => setType(TransactionType.EXPENSE)}
-                  />
-                  <span>Expense</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="amount">Amount (E)</Label>
-              <Input
-                id="amount"
-                type="number"
-                placeholder="0"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              />
-            </div>
-
-            {type === TransactionType.INCOME ? (
-              <div className="space-y-2">
-                <Label htmlFor="source">Source</Label>
-                <select
-                  id="source"
-                  value={formData.source}
-                  onChange={(e) => setFormData({ ...formData, source: e.target.value as IncomeSource })}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-background"
-                >
-                  <option value={IncomeSource.GRANT}>Grant</option>
-                  <option value={IncomeSource.SALARY}>Salary</option>
-                  <option value={IncomeSource.LOAN}>Loan</option>
-                  <option value={IncomeSource.SUBSCRIPTION}>Subscription</option>
-                  <option value={IncomeSource.OTHER}>Other</option>
-                </select>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <select
-                  id="category"
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value as ExpenseCategory })}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-background"
-                >
-                  <option value={ExpenseCategory.UTILITIES}>Utilities</option>
-                  <option value={ExpenseCategory.MORTGAGE}>Mortgage</option>
-                  <option value={ExpenseCategory.EQUIPMENT}>Equipment</option>
-                  <option value={ExpenseCategory.TRAVEL}>Travel</option>
-                  <option value={ExpenseCategory.OTHER}>Other</option>
-                </select>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Input
-                id="description"
-                placeholder="Description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <Button onClick={handleAddRecord}>Add Record</Button>
-              <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-            </div>
           </CardContent>
         </Card>
       )}

@@ -23,12 +23,13 @@ export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileC
     memberName: '',
     memberPhone: '',
     memberEmail: '',
-    description: ''
+    description: '',
+    branchName: ''
   })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     const newCase: Partial<HelpDeskCase> = {
       title: formData.title,
       memberName: formData.memberName,
@@ -51,7 +52,7 @@ export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileC
     }
 
     onSubmit(newCase)
-    setFormData({ title: '', memberName: '', memberPhone: '', memberEmail: '', description: '' })
+    setFormData({ title: '', memberName: '', memberPhone: '', memberEmail: '', description: '', branchName: '' })
   }
 
   return (
@@ -60,7 +61,7 @@ export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileC
         <DialogHeader>
           <DialogTitle>File New Support Case</DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="title">Case Title</Label>
@@ -95,6 +96,20 @@ export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileC
             />
           </div>
 
+          {!user && (<div>
+            <Label htmlFor="branch">Branches</Label>
+            <select
+              id="branch"
+              value={formData.branchName}
+              onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
+              className="w-full px-3 py-2 border border-border rounded-md text-sm"
+            >
+              <option value="">Select</option>
+              {/* list available branches */}
+              {<option value="Male">Male</option>}
+            </select>
+          </div>)}
+
           <div>
             <Label htmlFor="memberEmail">Email</Label>
             <Input
@@ -117,6 +132,21 @@ export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileC
               required
               className="min-h-24"
             />
+          </div>
+
+          {/* upload supporting files or images */}
+          <div>
+            <Label htmlFor="description">Upload supporting file</Label>
+            <Input
+              id="file"
+              placeholder="Describe the case details..."
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              required
+              className="min-h-24"
+            />
+
+            {/* display files in badges */}
           </div>
 
           <div className="flex gap-3 pt-4">

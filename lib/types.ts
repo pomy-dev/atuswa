@@ -43,15 +43,17 @@ export interface BoardMember {
 // Member Types
 export interface Member {
   id: string
-  branchId: string
+  branchId?: string
   name: string
+  email: string
   memberId: string
   phone: string
-  physicalAddress: string
-  age: number
+  address: string
+  dob: string
   workplace: string
   nextOfKin: string
-  gender: 'M' | 'F' | 'Other'
+  nextOfKinPhone: string
+  gender: 'Male' | 'Female' | 'Other'
   photo?: string
   joinDate: Date
 }
@@ -92,6 +94,9 @@ export interface FinancialRecord {
 
 // Project Types
 export enum ProjectStatus {
+  STARTING = 'starting',
+  IN_PROGRESS = 'in_progress',
+  FINISHED = 'finished',
   PLANNING = 'planning',
   ONGOING = 'ongoing',
   COMPLETED = 'completed'
@@ -220,7 +225,7 @@ export interface CaseDocument {
 
 export interface HelpDeskCase {
   id: string
-  branchId: string
+  branchId?: string
   title: string
   memberName: string
   memberPhone: string
@@ -240,13 +245,16 @@ export interface HelpDeskCase {
 export interface EFile {
   id: string
   branchId: string
-  name: string
   folderId: string
-  url: string
+
+  name: string
   type: string
-  size?: number
+  size: number
+
   uploadedBy: string
   uploadedAt: Date
+
+  file: File
 }
 
 export interface EFileFolder {

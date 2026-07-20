@@ -18,8 +18,8 @@ import {
 export const dummyUsers: User[] = [
   {
     id: 'user_1',
-    email: 'sg@xn--atusw-1qa.org',
-    name: 'Charles Mandela',
+    email: 'sg@atuswa.org',
+    name: 'Ngcebo Simelane',
     role: UserRole.SECRETARY_GENERAL,
     branchId: 'branch_main',
     password: 'demo123',
@@ -27,8 +27,8 @@ export const dummyUsers: User[] = [
   },
   {
     id: 'user_2',
-    email: 'branch@xn--atusw-1qa.org',
-    name: 'Sarah Johnson',
+    email: 'branch@atuswa.org',
+    name: 'Sarah Mkhonta',
     role: UserRole.BRANCH_ADMIN,
     branchId: 'branch_1',
     password: 'demo123',
@@ -36,8 +36,8 @@ export const dummyUsers: User[] = [
   },
   {
     id: 'user_3',
-    email: 'treasurer@xn--atusw-1qa.org',
-    name: 'James Okonkwo',
+    email: 'treasurer@atuswa.org',
+    name: 'James Lukhele',
     role: UserRole.TREASURER,
     branchId: 'branch_main',
     password: 'demo123',
@@ -45,7 +45,7 @@ export const dummyUsers: User[] = [
   },
   {
     id: 'user_4',
-    email: 'projects@xn--atusw-1qa.org',
+    email: 'projects@atuswa.org',
     name: 'Maria Santos',
     role: UserRole.PROJECT_COORDINATOR,
     branchId: 'branch_2',
@@ -54,7 +54,7 @@ export const dummyUsers: User[] = [
   },
   {
     id: 'user_5',
-    email: 'events@xn--atusw-1qa.org',
+    email: 'events@atuswa.org',
     name: 'David Thompson',
     role: UserRole.EVENTS_MANAGER,
     branchId: 'branch_1',
@@ -66,22 +66,22 @@ export const dummyUsers: User[] = [
 export const dummyBranches: Branch[] = [
   {
     id: 'branch_main',
-    name: 'Atuswá Headquarters',
-    location: 'Lagos, Nigeria',
+    name: 'Headquarters',
+    location: 'Mbabane',
     adminId: 'user_1',
     createdAt: new Date('2023-01-01')
   },
   {
     id: 'branch_1',
-    name: 'Western Region',
-    location: 'Ibadan, Nigeria',
+    name: 'Manzini Branch',
+    location: 'Manzini',
     adminId: 'user_2',
     createdAt: new Date('2023-06-01')
   },
   {
     id: 'branch_2',
-    name: 'Eastern Region',
-    location: 'Enugu, Nigeria',
+    name: 'Siteki Branch',
+    location: 'Lubombo',
     adminId: 'user_3',
     createdAt: new Date('2023-09-01')
   }
@@ -90,8 +90,8 @@ export const dummyBranches: Branch[] = [
 export const dummyBoardMembers: BoardMember[] = [
   {
     id: 'board_1',
-    name: 'Charles Mandela',
-    email: 'charles@xn--atusw-1qa.org',
+    name: 'Ngcebo Simelane',
+    email: 'ngcebo@atuswa.org',
     position: 'Secretary General',
     responsibilities: 'Overall leadership and strategic direction',
     branchId: 'branch_main',
@@ -101,7 +101,7 @@ export const dummyBoardMembers: BoardMember[] = [
   {
     id: 'board_2',
     name: 'Amara Obi',
-    email: 'amara@xn--atusw-1qa.org',
+    email: 'amara@atuswa.org',
     position: 'Vice Secretary',
     responsibilities: 'Deputy to Secretary General',
     branchId: 'branch_main',
@@ -110,8 +110,8 @@ export const dummyBoardMembers: BoardMember[] = [
   },
   {
     id: 'board_3',
-    name: 'Kehinde Adeyemi',
-    email: 'kehinde@xn--atusw-1qa.org',
+    name: 'Siza Maseko',
+    email: 'siza@atuswa.org',
     position: 'General Treasurer',
     responsibilities: 'Financial management and reporting',
     branchId: 'branch_main',
@@ -123,13 +123,13 @@ export const dummyBoardMembers: BoardMember[] = [
 export const dummyMembers: Member[] = Array.from({ length: 45 }, (_, i) => ({
   id: `member_${i + 1}`,
   branchId: ['branch_main', 'branch_1', 'branch_2'][i % 3],
-  name: ['Emeka Chukwu', 'Zainab Hassan', 'Peter Ogbonna', 'Chioma Eze', 'Segun Adebayo'][i % 5],
+  name: ['Futhi Zulu', 'Mandla Tsela', 'Peter Magongo', 'Phila Sibandze', 'Lungile Mkhatjwa'][i % 5],
   memberId: `ATU-${String(i + 1).padStart(4, '0')}`,
   phone: `+234-${80 + (i % 5)}-${Math.floor(1000000 + Math.random() * 8000000)}`,
   physicalAddress: [
-    '123 Lagos Street, Lagos',
-    '456 Ibadan Road, Ibadan',
-    '789 Enugu Avenue, Enugu'
+    '123 Vuvulane street, Mbabane',
+    '456 Mhlangazane Road, Maznini',
+    '789 Inshi Road, Mhlosheni'
   ][i % 3],
   age: 25 + (i % 40),
   workplace: ['Manufacturing', 'Transport', 'Agriculture', 'Services', 'Technology'][i % 5],
@@ -197,7 +197,10 @@ export const dummyProjects: Project[] = [
     branchId: 'branch_main',
     title: 'Skills Training Initiative',
     description: 'Comprehensive vocational training for union members',
-    status: ProjectStatus.IN_PROGRESS,
+    status: ProjectStatus.ONGOING,
+    coordinator: "Mr. Gule",
+    budget: 15000,
+    timeline: "3 Months",
     phases: [
       {
         id: 'phase_1',
@@ -213,7 +216,7 @@ export const dummyProjects: Project[] = [
         description: 'Develop training materials',
         startDate: new Date('2024-06-01'),
         endDate: new Date('2024-06-30'),
-        status: ProjectStatus.IN_PROGRESS
+        status: ProjectStatus.ONGOING
       }
     ],
     teamMembers: [
@@ -245,14 +248,17 @@ export const dummyProjects: Project[] = [
     branchId: 'branch_1',
     title: 'Community Outreach Program',
     description: 'Expand union presence in communities',
-    status: ProjectStatus.STARTING,
+    status: ProjectStatus.PLANNING,
+    coordinator: "Mr. Gule",
+    budget: 9000,
+    timeline: "8 Months",
     phases: [
       {
         id: 'phase_3',
         name: 'Community Mapping',
         description: 'Identify target communities',
         startDate: new Date('2024-07-01'),
-        status: ProjectStatus.STARTING
+        status: ProjectStatus.ONGOING
       }
     ],
     teamMembers: [],

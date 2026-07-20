@@ -1,10 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Share2, Users, TrendingUp, Heart } from 'lucide-react'
+import { Share2, Heart } from 'lucide-react'
+import { Member, HelpDeskCase } from '@/lib/types'
+import Logo from '@/public/atuswa-logo.png'
+import { AddMemberModal } from '@/components/modals/add-member-modal'
+import { FileCaseModal } from '@/components/modals/file-case-modal'
 
 export default function PublicWebsite() {
   const [activeTab, setActiveTab] = useState('home')
@@ -13,9 +16,12 @@ export default function PublicWebsite() {
     members: 0,
     projects: 0,
     branches: 3,
-    cases: 0,
-    totalIncome: 0
+    cases: 0
   })
+
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [showFileModal, setShowFileModal] = useState(false)
 
   useState(() => {
     setMounted(true)
@@ -23,19 +29,47 @@ export default function PublicWebsite() {
       const members = JSON.parse(localStorage.getItem('members') || '[]')
       const projects = JSON.parse(localStorage.getItem('projects') || '[]')
       const cases = JSON.parse(localStorage.getItem('helpdesk_cases') || '[]')
-      const financial = JSON.parse(localStorage.getItem('financial_records') || '[]')
 
       setStatistics({
         members: members.length,
         projects: projects.filter((p: any) => p.status === 'ongoing').length,
         branches: 3,
-        cases: cases.filter((c: any) => c.status !== 'completed').length,
-        totalIncome: financial.filter((f: any) => f.type === 'income').reduce((sum: number, f: any) => sum + f.amount, 0)
+        cases: cases.filter((c: any) => c.status !== 'completed').length
       })
     }
   })
 
-  const tabs = ['home', 'events', 'articles', 'projects', 'financial', 'members', 'helpdesk']
+  const handleFileCase = async (caseData: Partial<HelpDeskCase>) => {
+    setIsLoading(true)
+    try {
+      const newCase: HelpDeskCase = {
+        id: `case_${Date.now()}`,
+        // branchId: user!.branchId,
+        title: caseData.title!,
+        memberName: caseData.memberName!,
+        memberPhone: caseData.memberPhone!,
+        memberEmail: caseData.memberEmail!,
+        description: caseData.description!,
+        status: caseData.status!,
+        handlers: caseData.handlers!,
+        documents: [],
+        notes: [],
+        createdBy: caseData.createdBy!,
+        createdByName: caseData.createdByName!,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+
+      const allCases = JSON.parse(localStorage.getItem('helpDeskCases') || '[]')
+      const updated = [...allCases, newCase]
+      localStorage.setItem('helpDeskCases', JSON.stringify(updated))
+      setShowFileModal(false)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const tabs = ['home', 'events', 'articles', 'projects']
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
@@ -43,21 +77,26 @@ export default function PublicWebsite() {
       <nav className="bg-white dark:bg-slate-900 border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-4">
-            <div className="text-2xl font-bold text-primary">Atuswá Union</div>
+            <div className="flex flex-wrap items-center text-2xl font-bold text-primary gap-4">
+              <img src={Logo.src} alt="atuswa" className='h-10 w-10 object-fit-stretch border-radius-10' />
+              Atuswá Union
+            </div>
             <div className="flex gap-1 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition ${activeTab === tab
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:bg-accent'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-accent'
                     }`}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
               ))}
             </div>
+
+            <Button type='button' onClick={() => window.location.href = '/login'}>Login</Button>
           </div>
         </div>
       </nav>
@@ -74,16 +113,20 @@ export default function PublicWebsite() {
                 Empowering workers through solidarity, advocacy, and collective action for better working conditions and social justice.
               </p>
               <div className="flex gap-4 justify-center">
-                <Button size="lg" className="gap-2">
+                <Button type='button' onClick={() => setShowAddMemberModal(true)} size="lg" className="gap-2">
                   <Heart className="w-4 h-4" />
                   Join Us
                 </Button>
+                {/* scroll to about us section */}
                 <Button size="lg" variant="outline">Learn More</Button>
+
+                {/* show case-file modal */}
+                <button onClick={() => setShowFileModal(true)} className='bg-muted text-muted-foreground hover:bg-accent px-4 py-2 rounded-md font-medium text-sm whitespace-nowrap transition'>Grievances</button>
               </div>
             </div>
 
             {/* Statistics */}
-            <div className="grid md:grid-cols-5 gap-4">
+            <div className="grid md:grid-cols-3 gap-4">
               <Card>
                 <CardContent className="pt-6 text-center">
                   <div className="text-3xl font-bold text-primary">{statistics.members}</div>
@@ -100,18 +143,6 @@ export default function PublicWebsite() {
                 <CardContent className="pt-6 text-center">
                   <div className="text-3xl font-bold text-primary">{statistics.projects}</div>
                   <p className="text-sm text-muted-foreground">Active Projects</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <div className="text-3xl font-bold text-primary">E{(statistics.totalIncome / 1000).toFixed(0)}K</div>
-                  <p className="text-sm text-muted-foreground">Total Income</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <div className="text-3xl font-bold text-primary">{statistics.cases}</div>
-                  <p className="text-sm text-muted-foreground">Open Cases</p>
                 </CardContent>
               </Card>
             </div>
@@ -171,35 +202,16 @@ export default function PublicWebsite() {
         {/* HELPDESK TAB */}
         {activeTab === 'helpdesk' && (
           <div className="space-y-6">
-            <h2 className="text-3xl font-bold">Support Cases</h2>
-            <p className="text-muted-foreground">View open support cases and their status</p>
+            <h2 className="text-3xl font-bold">Grievances</h2>
+            <p className="text-muted-foreground">File your case and make your voice heard</p>
             <div className="grid gap-4">
-              {[
-                { title: 'Salary Payment Dispute', status: 'in_progress', handlers: 2 },
-                { title: 'Workplace Safety Concern', status: 'pending', handlers: 1 }
-              ].map((caseItem) => (
-                <Card key={caseItem.title}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-lg">{caseItem.title}</CardTitle>
-                        <div className="flex gap-2 mt-2">
-                          <Badge variant="outline">{caseItem.handlers} handler(s)</Badge>
-                          <Badge className={caseItem.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}>
-                            {caseItem.status === 'pending' ? 'Pending' : 'In Progress'}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                </Card>
-              ))}
+              {/* form filling - with input and preview for supporting images and docs */}
             </div>
           </div>
         )}
 
         {/* OTHER TABS - Placeholder */}
-        {['articles', 'projects', 'financial', 'members'].includes(activeTab) && (
+        {['articles', 'projects'].includes(activeTab) && (
           <div className="text-center py-12">
             <p className="text-2xl font-bold mb-4">
               {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Section
@@ -211,10 +223,45 @@ export default function PublicWebsite() {
         )}
       </div>
 
+      {/* About */}
+      <div className="max-w-7xl mx-auto px-4 py-12">
+      </div>
+
+      {/* add member modal */}
+      <AddMemberModal
+        open={showAddMemberModal}
+        onOpenChange={setShowAddMemberModal}
+        onSubmit={(member) => {
+          setIsLoading(true)
+          try {
+            const allMembers = JSON.parse(localStorage.getItem('members') || '[]')
+            const newMember: Member = {
+              ...member,
+              id: `member_${Date.now()}`,
+              joinDate: new Date()
+            }
+            const updated = [...allMembers, newMember]
+            localStorage.setItem('members', JSON.stringify(updated))
+            setShowAddMemberModal(false)
+          } finally {
+            setIsLoading(false)
+          }
+        }}
+        isLoading={isLoading}
+      />
+
+      {/* File Case Modal */}
+      <FileCaseModal
+        open={showFileModal}
+        onOpenChange={setShowFileModal}
+        onSubmit={handleFileCase}
+        isLoading={isLoading}
+      />
+
       {/* Footer */}
       <footer className="bg-muted mt-12 py-8 border-t">
         <div className="max-w-7xl mx-auto px-4 text-center text-muted-foreground">
-          <p>&copy; 2024 Atuswá Union. All rights reserved.</p>
+          <p>&copy; 2026 Atuswá Union. All rights reserved.</p>
         </div>
       </footer>
     </div>

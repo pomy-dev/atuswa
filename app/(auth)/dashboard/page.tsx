@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { Users, DollarSign, Briefcase, AlertCircle } from 'lucide-react'
 
 export default function DashboardPage() {
@@ -68,7 +68,7 @@ export default function DashboardPage() {
     }))
   }, [])
 
-  const COLORS = ['hsl(var(--color-accent))', 'hsl(var(--color-primary))', 'hsl(var(--color-secondary))']
+  const COLORS = ['#1c0facff', '#f633ef', '#f98220']
 
   return (
     <div className="p-6 space-y-6">
@@ -141,8 +141,8 @@ export default function DashboardPage() {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="income" fill="hsl(var(--color-accent))" name="Income" />
-                <Bar dataKey="expense" fill="hsl(var(--color-primary))" name="Expense" />
+                <Bar dataKey="income" fill="#476bf9ff" name="Income" />
+                <Bar dataKey="expense" fill="#f84c57ff" name="Expense" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
