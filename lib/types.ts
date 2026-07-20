@@ -157,7 +157,7 @@ export interface Project {
   images: ProjectImage[]
   documents: ProjectDocument[]
   timeline: string
-  startDate: Date
+  startDate?: Date
   endDate?: Date
   createdBy: string
   createdAt: Date

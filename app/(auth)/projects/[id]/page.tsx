@@ -294,11 +294,11 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="font-semibold">Images ({project.images.length})</h3>
                   <label>
-                    <Button variant="outline" size="sm" disabled={isUploading}>
+                    <Button variant="outline" onClick={() => document.getElementById('project-image')?.click()} size="sm" disabled={isUploading}>
                       {isUploading ? <Loader className="w-4 h-4 animate-spin mr-2" /> : null}
                       <span>Upload Image</span>
                     </Button>
-                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload('image')} disabled={isUploading} />
+                    <input id='project-image' type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload('image')} disabled={isUploading} />
                   </label>
                 </div>
 
@@ -345,11 +345,11 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="font-semibold">Documents ({project.documents.length})</h3>
                   <label>
-                    <Button variant="outline" size="sm" disabled={isUploading}>
+                    <Button onClick={() => document.getElementById('project-doc')?.click()} variant="outline" size="sm" disabled={isUploading}>
                       {isUploading ? <Loader className="w-4 h-4 animate-spin mr-2" /> : null}
                       <span>Upload Document</span>
                     </Button>
-                    <input type="file" multiple className="hidden" onChange={handleFileUpload('document')} disabled={isUploading} />
+                    <input id='project-doc' type="file" multiple className="hidden" onChange={handleFileUpload('document')} disabled={isUploading} />
                   </label>
                 </div>
 

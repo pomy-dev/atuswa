@@ -251,7 +251,7 @@ export default function EventsPage() {
             <div>
               <Label>Location</Label>
               <Input
-                placeholder="Lagos Convention Center"
+                placeholder="Conference Room"
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
               />
@@ -409,9 +409,6 @@ export default function EventsPage() {
                     <MapPin className="w-4 h-4" />
                     {event.location}
                   </div>
-                  {event.notes && (
-                    <p className="text-sm text-muted-foreground">{event.notes}</p>
-                  )}
                 </div>
 
                 {event.notes && <p className="mb-5">{event.notes}</p>}
@@ -532,8 +529,6 @@ export default function EventsPage() {
             </Card>
           ))
         )}
-
-
       </div>
     </div >
   )
