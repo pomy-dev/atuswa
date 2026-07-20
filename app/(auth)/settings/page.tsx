@@ -1,12 +1,86 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useAuth } from '@/lib/auth-context'
-import { User, Mail, Building2, Calendar } from 'lucide-react'
+import { User, Mail, Building2, Calendar, Lock, Activity, Clock } from 'lucide-react'
 
 export default function SettingsPage() {
   const { user } = useAuth()
+  const [showPasswordForm, setShowPasswordForm] = useState(false)
+  const [passwordData, setPasswordData] = useState({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  const [passwordMessage, setPasswordMessage] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [activityLogs, setActivityLogs] = useState<any[]>([])
+
+  useEffect(() => {
+    const logs = JSON.parse(localStorage.getItem(`activity_logs_${user?.id}`) || '[]')
+    setActivityLogs(logs.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()))
+  }, [user])
+
+  const handlePasswordChange = (e: React.FormEvent) => {
+    e.preventDefault()
+    setPasswordError('')
+    setPasswordMessage('')
+
+    if (!passwordData.oldPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      setPasswordError('All fields are required')
+      return
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError('New passwords do not match')
+      return
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters long')
+      return
+    }
+
+    if (passwordData.oldPassword === passwordData.newPassword) {
+      setPasswordError('New password must be different from old password')
+      return
+    }
+
+    const users = JSON.parse(localStorage.getItem('users') || '[]')
+    const userIndex = users.findIndex((u: any) => u.id === user?.id)
+
+    if (userIndex === -1) {
+      setPasswordError('User not found')
+      return
+    }
+
+    if (users[userIndex].password !== passwordData.oldPassword) {
+      setPasswordError('Old password is incorrect')
+      return
+    }
+
+    users[userIndex].password = passwordData.newPassword
+    localStorage.setItem('users', JSON.stringify(users))
+
+    // Log the password change
+    const logs = JSON.parse(localStorage.getItem(`activity_logs_${user?.id}`) || '[]')
+    logs.push({
+      timestamp: new Date().toISOString(),
+      action: 'Password Changed',
+      details: 'User changed their password'
+    })
+    localStorage.setItem(`activity_logs_${user?.id}`, JSON.stringify(logs))
+
+    setPasswordMessage('Password changed successfully!')
+    setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' })
+    setShowPasswordForm(false)
+    setTimeout(() => setPasswordMessage(''), 3000)
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-2xl">
@@ -126,6 +200,111 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Change Password */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Lock className="w-5 h-5" />
+            Change Password
+          </CardTitle>
+          <CardDescription>Update your account password</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!showPasswordForm ? (
+            <Button onClick={() => setShowPasswordForm(true)}>Change Password</Button>
+          ) : (
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              {passwordMessage && (
+                <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded text-green-700 dark:text-green-400 text-sm">
+                  {passwordMessage}
+                </div>
+              )}
+              {passwordError && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-red-700 dark:text-red-400 text-sm">
+                  {passwordError}
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="oldPassword">Old Password</Label>
+                <Input
+                  id="oldPassword"
+                  type="password"
+                  placeholder="Enter your current password"
+                  value={passwordData.oldPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, oldPassword: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="newPassword">New Password</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  placeholder="Enter new password"
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button type="submit">Update Password</Button>
+                <Button type="button" variant="outline" onClick={() => setShowPasswordForm(false)}>Cancel</Button>
+              </div>
+            </form>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Activity Logs */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="w-5 h-5" />
+            Activity Logs
+          </CardTitle>
+          <CardDescription>Your recent account activities</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {activityLogs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No activity logs yet</p>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {activityLogs.map((log, idx) => (
+                <div key={idx} className="flex gap-3 p-3 border rounded-lg bg-muted/30">
+                  <div className="flex-shrink-0">
+                    <Clock className="w-4 h-4 text-muted-foreground mt-0.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">{log.action}</p>
+                    {log.details && (
+                      <p className="text-xs text-muted-foreground mt-1">{log.details}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(log.timestamp).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -1,12 +1,62 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { Users, DollarSign, Briefcase, AlertCircle } from 'lucide-react'
+import { Users, DollarSign, Briefcase, AlertCircle, Plus, Trash2, CheckCircle, Clock } from 'lucide-react'
+import { useAuth } from '@/lib/auth-context'
 
 export default function DashboardPage() {
+  const { user } = useAuth()
+  const [activeTab, setActiveTab] = useState('overview')
+  const [articles, setArticles] = useState<any[]>([])
+  const [showArticleForm, setShowArticleForm] = useState(false)
+  const [articleForm, setArticleForm] = useState({
+    title: '',
+    content: '',
+    category: 'General',
+    published: false
+  })
+
+  useMemo(() => {
+    const stored = JSON.parse(localStorage.getItem('articles') || '[]')
+    setArticles(stored)
+  }, [activeTab === 'articles'])
+
+  const handleAddArticle = () => {
+    if (!articleForm.title.trim() || !articleForm.content.trim()) {
+      alert('Please fill in all fields')
+      return
+    }
+
+    const newArticle = {
+      id: `article_${Date.now()}`,
+      title: articleForm.title,
+      content: articleForm.content,
+      category: articleForm.category,
+      published: articleForm.published,
+      createdBy: user?.name,
+      createdAt: new Date().toISOString()
+    }
+
+    const allArticles = [...articles, newArticle]
+    localStorage.setItem('articles', JSON.stringify(allArticles))
+    setArticles(allArticles)
+    setArticleForm({ title: '', content: '', category: 'General', published: false })
+    setShowArticleForm(false)
+  }
+
+  const handleDeleteArticle = (id: string) => {
+    const updated = articles.filter(a => a.id !== id)
+    localStorage.setItem('articles', JSON.stringify(updated))
+    setArticles(updated)
+  }
+
   const stats = useMemo(() => {
     const members = JSON.parse(localStorage.getItem('members') || '[]')
     const financialRecords = JSON.parse(localStorage.getItem('financialRecords') || '[]')
@@ -72,10 +122,40 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Welcome back to Atuswá Union Management System</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Welcome back to Atuswá Union Management System</p>
+        </div>
       </div>
+
+      {/* Tab Navigation */}
+      <div className="flex gap-2 border-b">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition ${
+            activeTab === 'overview'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Overview
+        </button>
+        <button
+          onClick={() => setActiveTab('articles')}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition ${
+            activeTab === 'articles'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Articles & Content
+        </button>
+      </div>
+
+      {/* OVERVIEW TAB */}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -213,6 +293,138 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+        </div>
+      )}
+
+      {/* ARTICLES TAB */}
+      {activeTab === 'articles' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Articles & Content</h2>
+              <p className="text-muted-foreground mt-1">Manage articles that appear on the website</p>
+            </div>
+            <Button onClick={() => setShowArticleForm(true)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              New Article
+            </Button>
+          </div>
+
+          {showArticleForm && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Create New Article</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="title">Article Title *</Label>
+                  <Input
+                    id="title"
+                    placeholder="Article title"
+                    value={articleForm.title}
+                    onChange={(e) => setArticleForm({ ...articleForm, title: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="content">Content *</Label>
+                  <Textarea
+                    id="content"
+                    placeholder="Article content..."
+                    value={articleForm.content}
+                    onChange={(e) => setArticleForm({ ...articleForm, content: e.target.value })}
+                    rows={6}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="category">Category</Label>
+                  <select
+                    id="category"
+                    value={articleForm.category}
+                    onChange={(e) => setArticleForm({ ...articleForm, category: e.target.value })}
+                    className="w-full px-3 py-2 border border-border rounded-md text-sm"
+                  >
+                    <option value="General">General</option>
+                    <option value="News">News</option>
+                    <option value="Announcement">Announcement</option>
+                    <option value="Guide">Guide</option>
+                    <option value="Resources">Resources</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="published"
+                    checked={articleForm.published}
+                    onChange={(e) => setArticleForm({ ...articleForm, published: e.target.checked })}
+                    className="rounded"
+                  />
+                  <Label htmlFor="published" className="cursor-pointer">Publish to website</Label>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button onClick={handleAddArticle}>Create Article</Button>
+                  <Button variant="outline" onClick={() => setShowArticleForm(false)}>Cancel</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Articles List */}
+          <div className="grid gap-4">
+            {articles.length === 0 ? (
+              <Card>
+                <CardContent className="pt-6 text-center text-muted-foreground">
+                  No articles yet. Create your first article to get started!
+                </CardContent>
+              </Card>
+            ) : (
+              articles.map(article => (
+                <Card key={article.id} className="overflow-hidden">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-lg">{article.title}</CardTitle>
+                          {article.published ? (
+                            <Badge className="gap-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                              <CheckCircle className="w-3 h-3" />
+                              Published
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="gap-1">
+                              <Clock className="w-3 h-3" />
+                              Draft
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
+                          <span className="px-2 py-1 bg-muted rounded">{article.category}</span>
+                          <span>{new Date(article.createdAt).toLocaleDateString()}</span>
+                          <span>By {article.createdBy}</span>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteArticle(article.id)}
+                        className="text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground line-clamp-3">{article.content}</p>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
