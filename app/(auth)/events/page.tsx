@@ -26,6 +26,7 @@ export default function EventsPage() {
   const [sortBy, setSortBy] = useState<'name' | 'date'>('date')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [filterBranch, setFilterBranch] = useState<string>('all')
+  const [branches, setBranches] = useState<any[]>([])
 
   // Form Data
   const [formData, setFormData] = useState({
@@ -43,7 +44,7 @@ export default function EventsPage() {
     previewUrl: '' as string,
   })
 
-  // Load events
+  // Load events and branches
   useEffect(() => {
     if (!user) return
     const allEvents: Event[] = JSON.parse(localStorage.getItem('events') || '[]')
@@ -51,6 +52,9 @@ export default function EventsPage() {
       user.role === UserRole.SECRETARY_GENERAL || e.branchId === user.branchId
     )
     setEvents(filtered)
+
+    const storedBranches = JSON.parse(localStorage.getItem('branches') || '[]')
+    setBranches(storedBranches)
   }, [user])
 
   // Permission check
@@ -204,9 +208,11 @@ export default function EventsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Branches</SelectItem>
-                  <SelectItem value="lagos">Lagos Branch</SelectItem>
-                  <SelectItem value="abuja">Abuja Branch</SelectItem>
-                  <SelectItem value="port-harcourt">Port Harcourt Branch</SelectItem>
+                  {branches.map(branch => (
+                    <SelectItem key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -3,7 +3,9 @@
 import { useState, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Share2, Heart, CheckCircle, Clock, AlertCircle } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
+import { Share2, Heart, CheckCircle, Clock, AlertCircle, Mail, MessageCircle, Facebook, Twitter } from 'lucide-react'
 import { Member, HelpDeskCase } from '@/lib/types'
 import Logo from '@/public/atuswa-logo.png'
 import { AddMemberModal } from '@/components/modals/add-member-modal'
@@ -20,6 +22,9 @@ export default function PublicWebsite() {
   })
   const [ongoingProjects, setOngoingProjects] = useState<any[]>([])
   const [publishedArticles, setPublishedArticles] = useState<any[]>([])
+  const [allEvents, setAllEvents] = useState<any[]>([])
+  const [branches, setBranches] = useState<any[]>([])
+  const [eventFilterBranch, setEventFilterBranch] = useState<string>('all')
   const aboutSectionRef = useRef<HTMLDivElement>(null)
 
   const [showAddMemberModal, setShowAddMemberModal] = useState(false)
@@ -33,17 +38,21 @@ export default function PublicWebsite() {
       const projects = JSON.parse(localStorage.getItem('projects') || '[]')
       const cases = JSON.parse(localStorage.getItem('helpdesk_cases') || '[]')
       const articles = JSON.parse(localStorage.getItem('articles') || '[]')
+      const events = JSON.parse(localStorage.getItem('events') || '[]')
+      const branches = JSON.parse(localStorage.getItem('branches') || '[]')
       
       const ongoing = projects.filter((p: any) => p.status === 'ongoing')
       const published = articles.filter((a: any) => a.published)
       
       setOngoingProjects(ongoing)
       setPublishedArticles(published)
+      setAllEvents(events)
+      setBranches(branches)
 
       setStatistics({
         members: members.length,
         projects: ongoing.length,
-        branches: 3,
+        branches: branches.length || 3,
         cases: cases.filter((c: any) => c.status !== 'completed').length
       })
     }
@@ -179,30 +188,124 @@ export default function PublicWebsite() {
         {activeTab === 'events' && (
           <div className="space-y-6">
             <h2 className="text-3xl font-bold">Upcoming Events</h2>
+            
+            {/* Filter Controls */}
+            <Card className="bg-muted/30 border-muted">
+              <CardContent className="pt-6">
+                <div>
+                  <Label>Filter by Branch</Label>
+                  <Select value={eventFilterBranch} onValueChange={setEventFilterBranch}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Branches</SelectItem>
+                      {branches.map(branch => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Events List */}
             <div className="grid gap-6">
-              {[
-                { title: 'Annual General Meeting', date: 'July 2024', desc: 'Annual gathering for all members' },
-                { title: 'Worker Rights Workshop', date: 'August 2024', desc: 'Training on labor laws and rights' },
-                { title: 'Community Service Day', date: 'September 2024', desc: 'Volunteering and community outreach' }
-              ].map((event) => (
-                <Card key={event.title} className="hover:shadow-lg transition">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle>{event.title}</CardTitle>
-                        <CardDescription>{event.date}</CardDescription>
-                      </div>
-                      <Button size="sm" variant="ghost" className="gap-2">
-                        <Share2 className="w-4 h-4" />
-                        Share
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">{event.desc}</p>
+              {allEvents.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-6 text-center text-muted-foreground">
+                    No events scheduled yet
                   </CardContent>
                 </Card>
-              ))}
+              ) : (
+                allEvents
+                  .filter(event => eventFilterBranch === 'all' || event.branchId === eventFilterBranch)
+                  .map((event) => (
+                    <Card key={event.id} className="hover:shadow-lg transition overflow-hidden">
+                      <CardHeader className="pb-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <CardTitle>{event.title}</CardTitle>
+                            <CardDescription className="mt-2">{event.notes}</CardDescription>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            {new Date(event.date).toLocaleDateString()}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4" />
+                            {event.location}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex gap-2 flex-wrap">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            onClick={() => {
+                              const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
+                              window.open(`mailto:?subject=${event.title}&body=${text}`, '_blank')
+                            }}
+                            title="Share via Email"
+                          >
+                            <Mail className="w-3 h-3" />
+                            Email
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            onClick={() => {
+                              const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
+                              window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+                            }}
+                            title="Share via WhatsApp"
+                          >
+                            <MessageCircle className="w-3 h-3" />
+                            WhatsApp
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            onClick={() => {
+                              const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
+                              window.open(`https://www.facebook.com/sharer/sharer.php?u=${window.location.href}&quote=${encodeURIComponent(text)}`, '_blank')
+                            }}
+                            title="Share on Facebook"
+                          >
+                            <Facebook className="w-3 h-3" />
+                            Facebook
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            onClick={() => {
+                              const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
+                              window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
+                            }}
+                            title="Share on Twitter"
+                          >
+                            <Twitter className="w-3 h-3" />
+                            Twitter
+                          </Button>
+                        </div>
+                        {event.stakeholders && event.stakeholders.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            <strong>{event.stakeholders.length}</strong> people invited
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))
+              )}
             </div>
           </div>
         )}
