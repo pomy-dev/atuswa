@@ -179,7 +179,7 @@ export default function ProjectsPage() {
                         {project.title}
                       </Link>
                       <Badge className={statusColors[project.status]}>
-                        {project.status.replace(/_/g, ' ')}
+                        {project.status?.replace(/_/g, ' ')}
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mb-3">{project.description}</p>

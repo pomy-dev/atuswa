@@ -7,6 +7,7 @@ import { UserRole } from '@/lib/types'
 import {
   LayoutDashboard,
   Users,
+  UserCog,
   DollarSign,
   Briefcase,
   Calendar,
@@ -39,7 +40,7 @@ export function Sidebar() {
     {
       label: 'Board Members',
       href: '/board',
-      icon: Users2,
+      icon: UserCog,
       roles: [UserRole.SECRETARY_GENERAL]
     },
     {

@@ -17,7 +17,7 @@ import {
   ProjectTeamMember,
   ProjectResource
 } from '@/lib/types'
-import { ArrowLeft, Plus, Upload, Trash2, Users, Calendar } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Users } from 'lucide-react'
 
 type Params = Promise<{ id: string }>
 
@@ -198,7 +198,7 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
             </CardDescription>
           </div>
           <Badge className={statusColors[project.status]}>
-            {project.status.replace('_', ' ')}
+            {project.status?.replace('_', ' ')}
           </Badge>
         </CardHeader>
       </Card>

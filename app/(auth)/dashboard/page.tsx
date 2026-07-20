@@ -96,9 +96,9 @@ export default function DashboardPage() {
             <DollarSign className="w-4 h-4 text-accent" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₦{(stats.balance / 1000).toFixed(0)}K</div>
+            <div className="text-2xl font-bold">E{(stats.balance / 1000).toFixed(0)}K</div>
             <p className="text-xs text-muted-foreground mt-1">
-              <span className="text-green-600 font-semibold">+₦{(stats.totalIncome / 1000).toFixed(0)}K</span> income
+              <span className="text-green-600 font-semibold">+E{(stats.totalIncome / 1000).toFixed(0)}K</span> income
             </p>
           </CardContent>
         </Card>
@@ -163,7 +163,7 @@ export default function DashboardPage() {
                   labelLine={false}
                   label={({ name, value }) => `${name}: ${value}`}
                   outerRadius={80}
-                  fill="#8884d8"
+                  fill="#f6be17ff"
                   dataKey="value"
                 >
                   {branchData.map((_, index) => (
