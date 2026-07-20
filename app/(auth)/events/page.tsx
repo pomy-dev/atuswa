@@ -27,7 +27,7 @@ export default function EventsPage() {
   const [showForm, setShowForm] = useState(false)
   const [sortBy, setSortBy] = useState<'name' | 'date'>('date')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
-  const [filterBranch, setFilterBranch] = useState<string>('all')
+  const [filterBranch, setFilterBranch] = useState<string | null>('all')
   const [branches, setBranches] = useState<any[]>([])
 
   // Form Data
@@ -178,7 +178,7 @@ export default function EventsPage() {
       <Card className="bg-muted/30 border-muted">
         <CardContent className="pt-6">
           <div className="grid md:grid-cols-3 gap-4">
-            <div>
+            <div className='flex flex-wrap gap-2'>
               <Label>Sort By</Label>
               <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'name' | 'date')}>
                 <SelectTrigger>
@@ -190,7 +190,7 @@ export default function EventsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
+            <div className='flex flex-wrap gap-2'>
               <Label>Sort Order</Label>
               <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as 'asc' | 'desc')}>
                 <SelectTrigger>
@@ -202,7 +202,7 @@ export default function EventsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
+            <div className='flex flex-wrap gap-2'>
               <Label>Filter by Branch</Label>
               <Select value={filterBranch} onValueChange={setFilterBranch}>
                 <SelectTrigger>

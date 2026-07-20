@@ -5,7 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { Share2, Heart, CheckCircle, Clock, AlertCircle, Mail, MessageCircle, Facebook, Twitter } from 'lucide-react'
+import { Share2, Heart, CheckCircle, Clock, AlertCircle, Mail, MessageCircle } from 'lucide-react'
+import Twitter from '@/public/twitter.png'
+import Facebook from '@/public/facebook.png'
 import { Member, HelpDeskCase } from '@/lib/types'
 import Logo from '@/public/atuswa-logo.png'
 import { AddMemberModal } from '@/components/modals/add-member-modal'
@@ -24,7 +26,7 @@ export default function PublicWebsite() {
   const [publishedArticles, setPublishedArticles] = useState<any[]>([])
   const [allEvents, setAllEvents] = useState<any[]>([])
   const [branches, setBranches] = useState<any[]>([])
-  const [eventFilterBranch, setEventFilterBranch] = useState<string>('all')
+  const [eventFilterBranch, setEventFilterBranch] = useState<string | null>('all')
   const aboutSectionRef = useRef<HTMLDivElement>(null)
 
   const [showAddMemberModal, setShowAddMemberModal] = useState(false)
@@ -40,10 +42,10 @@ export default function PublicWebsite() {
       const articles = JSON.parse(localStorage.getItem('articles') || '[]')
       const events = JSON.parse(localStorage.getItem('events') || '[]')
       const branches = JSON.parse(localStorage.getItem('branches') || '[]')
-      
+
       const ongoing = projects.filter((p: any) => p.status === 'ongoing')
       const published = articles.filter((a: any) => a.published)
-      
+
       setOngoingProjects(ongoing)
       setPublishedArticles(published)
       setAllEvents(events)
@@ -188,11 +190,11 @@ export default function PublicWebsite() {
         {activeTab === 'events' && (
           <div className="space-y-6">
             <h2 className="text-3xl font-bold">Upcoming Events</h2>
-            
+
             {/* Filter Controls */}
             <Card className="bg-muted/30 border-muted">
               <CardContent className="pt-6">
-                <div>
+                <div className='flex  flex-wrap gap-4'>
                   <Label>Filter by Branch</Label>
                   <Select value={eventFilterBranch} onValueChange={setEventFilterBranch}>
                     <SelectTrigger>
@@ -280,7 +282,7 @@ export default function PublicWebsite() {
                             }}
                             title="Share on Facebook"
                           >
-                            <Facebook className="w-3 h-3" />
+                            <img src={Facebook.src} alt='F' className="w-3 h-3" />
                             Facebook
                           </Button>
                           <Button
@@ -293,7 +295,7 @@ export default function PublicWebsite() {
                             }}
                             title="Share on Twitter"
                           >
-                            <Twitter className="w-3 h-3" />
+                            <img src={Twitter.src} alt='X' className="w-3 h-3" />
                             Twitter
                           </Button>
                         </div>

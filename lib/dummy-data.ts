@@ -124,17 +124,19 @@ export const dummyMembers: Member[] = Array.from({ length: 45 }, (_, i) => ({
   id: `member_${i + 1}`,
   branchId: ['branch_main', 'branch_1', 'branch_2'][i % 3],
   name: ['Futhi Zulu', 'Mandla Tsela', 'Peter Magongo', 'Phila Sibandze', 'Lungile Mkhatjwa'][i % 5],
+  email: ['zulu.f@gmail.com', 'tsela.m@gmail.com', 'magongo.p@gmail.com', 'sibandze.p@gmail.com', 'mkhatjwa.l@gmail.com'][i % 5],
   memberId: `ATU-${String(i + 1).padStart(4, '0')}`,
-  phone: `+234-${80 + (i % 5)}-${Math.floor(1000000 + Math.random() * 8000000)}`,
-  physicalAddress: [
+  phone: `+268-${80 + (i % 5)}-${Math.floor(1000000 + Math.random() * 8000000)}`,
+  address: [
     '123 Vuvulane street, Mbabane',
     '456 Mhlangazane Road, Maznini',
     '789 Inshi Road, Mhlosheni'
   ][i % 3],
-  age: 25 + (i % 40),
+  dob: '01/01/1999',
   workplace: ['Manufacturing', 'Transport', 'Agriculture', 'Services', 'Technology'][i % 5],
   nextOfKin: `Family Member ${i + 1}`,
-  gender: i % 2 === 0 ? 'M' : 'F',
+  nextOfKinPhone: `+268-${80 + (i % 5)}-${Math.floor(1000000 + Math.random() * 8000000)}`,
+  gender: i % 2 === 0 ? 'Male' : 'Female',
   joinDate: new Date(2023, Math.floor(i / 5), (i % 28) + 1)
 }))
 
