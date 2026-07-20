@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth-context'
 import { UserRole, Event } from '@/lib/types'
-import { Plus, Trash2, Calendar, MapPin, Upload, X, Users, Share2, Mail, MessageCircle } from 'lucide-react'
+import { Plus, Trash2, Calendar, MapPin, Upload, X, Users, Share2, Mail, MessageCircle, Facebook, Twitter } from 'lucide-react'
 
 interface Stakeholder {
   id: string
@@ -22,6 +23,9 @@ export default function EventsPage() {
   const { user } = useAuth()
   const [events, setEvents] = useState<Event[]>([])
   const [showForm, setShowForm] = useState(false)
+  const [sortBy, setSortBy] = useState<'name' | 'date'>('date')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [filterBranch, setFilterBranch] = useState<string>('all')
 
   // Form Data
   const [formData, setFormData] = useState({
@@ -139,6 +143,18 @@ export default function EventsPage() {
 
   const isUpcoming = (date: Date) => new Date(date) > new Date()
 
+  const filteredAndSortedEvents = events
+    .filter(e => filterBranch === 'all' || e.branchId === filterBranch)
+    .sort((a, b) => {
+      let comparison = 0
+      if (sortBy === 'name') {
+        comparison = a.title.localeCompare(b.title)
+      } else {
+        comparison = new Date(a.date).getTime() - new Date(b.date).getTime()
+      }
+      return sortOrder === 'asc' ? comparison : -comparison
+    })
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -151,6 +167,52 @@ export default function EventsPage() {
           New Event
         </Button>
       </div>
+
+      {/* Filter Controls */}
+      <Card className="bg-muted/30 border-muted">
+        <CardContent className="pt-6">
+          <div className="grid md:grid-cols-3 gap-4">
+            <div>
+              <Label>Sort By</Label>
+              <Select value={sortBy} onValueChange={(value: 'name' | 'date') => setSortBy(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Event Name</SelectItem>
+                  <SelectItem value="date">Event Date</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Sort Order</Label>
+              <Select value={sortOrder} onValueChange={(value: 'asc' | 'desc') => setSortOrder(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="asc">Ascending</SelectItem>
+                  <SelectItem value="desc">Descending</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Filter by Branch</Label>
+              <Select value={filterBranch} onValueChange={setFilterBranch}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  <SelectItem value="lagos">Lagos Branch</SelectItem>
+                  <SelectItem value="abuja">Abuja Branch</SelectItem>
+                  <SelectItem value="port-harcourt">Port Harcourt Branch</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {showForm && (
         <Card>
@@ -304,14 +366,14 @@ export default function EventsPage() {
 
       {/* Event lists */}
       <div className="grid gap-4">
-        {events.length === 0 ? (
+        {filteredAndSortedEvents.length === 0 ? (
           <Card>
             <CardContent className="pt-6 text-center text-muted-foreground">
-              No events found
+              {events.length === 0 ? 'No events found' : 'No events match your filters'}
             </CardContent>
           </Card>
         ) : (
-          events.map((event) => (
+          filteredAndSortedEvents.map((event) => (
             <Card key={event.id} className="hover:shadow-md transition-shadow">
               <CardContent className="pt-6">
                 <div className="flex justify-between items-start mb-4">
@@ -365,18 +427,19 @@ export default function EventsPage() {
                 {/* Share Section */}
                 <div className="space-y-3 pt-4 border-t">
                   <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4" />
-                    <span className="text-sm">Share Event</span>
+                    <Share2 className="w-4 h-4" />
+                    <span className="text-sm font-semibold">Share Event</span>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1 gap-2"
+                      className="gap-2"
                       onClick={() => {
                         const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
                         window.open(`mailto:?subject=${event.title}&body=${text}`, '_blank')
                       }}
+                      title="Share via Email"
                     >
                       <Mail className="w-3 h-3" />
                       Email
@@ -384,11 +447,12 @@ export default function EventsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1 gap-2"
+                      className="gap-2"
                       onClick={() => {
                         const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
                         window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
                       }}
+                      title="Share via WhatsApp"
                     >
                       <MessageCircle className="w-3 h-3" />
                       WhatsApp
@@ -396,7 +460,46 @@ export default function EventsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1 gap-2"
+                      className="gap-2"
+                      onClick={() => {
+                        const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
+                        window.open(`https://www.facebook.com/sharer/sharer.php?u=${window.location.href}&quote=${encodeURIComponent(text)}`, '_blank')
+                      }}
+                      title="Share on Facebook"
+                    >
+                      <Facebook className="w-3 h-3" />
+                      Facebook
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => {
+                        const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
+                        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
+                      }}
+                      title="Share on Twitter"
+                    >
+                      <Twitter className="w-3 h-3" />
+                      Twitter
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => {
+                        const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
+                        window.open(`sms:?body=${encodeURIComponent(text)}`, '_blank')
+                      }}
+                      title="Share via SMS"
+                    >
+                      <MessageCircle className="w-3 h-3" />
+                      SMS
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
                       onClick={() => {
                         const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
                         if (navigator.share) {
@@ -405,13 +508,12 @@ export default function EventsPage() {
                             text: text,
                             url: window.location.href
                           })
-                        } else {
-                          window.open(`https://www.facebook.com/sharer/sharer.php?u=${window.location.href}&quote=${encodeURIComponent(text)}`, '_blank')
                         }
                       }}
+                      title="More sharing options"
                     >
                       <Share2 className="w-3 h-3" />
-                      Share
+                      More
                     </Button>
                   </div>
                   <div className="text-xs text-muted-foreground">

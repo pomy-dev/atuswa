@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
-import { Member } from '@/lib/types'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Member, UserRole } from '@/lib/types'
+import { useAuth } from '@/lib/auth-context'
 
 interface AddMemberModalProps {
   open: boolean
@@ -17,6 +19,13 @@ interface AddMemberModalProps {
 }
 
 export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branchId }: AddMemberModalProps) {
+  const { user } = useAuth()
+  const [branches] = useState([
+    { id: 'lagos', name: 'Lagos Branch' },
+    { id: 'abuja', name: 'Abuja Branch' },
+    { id: 'port-harcourt', name: 'Port Harcourt Branch' }
+  ])
+  
   const [formData, setFormData] = useState({
     memberId: '',
     name: '',
@@ -27,13 +36,27 @@ export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branch
     workplace: '',
     address: '',
     nextOfKinName: '',
-    nextOfKinPhone: ''
+    nextOfKinPhone: '',
+    selectedBranch: ''
   })
+
+  useEffect(() => {
+    if (user?.role === UserRole.BRANCH_ADMIN && user?.branchId) {
+      setFormData(prev => ({
+        ...prev,
+        selectedBranch: user.branchId
+      }))
+    }
+  }, [user, open])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.name || !formData.email || !formData.phone) {
       alert('Please fill in required fields')
+      return
+    }
+    if (!formData.selectedBranch) {
+      alert('Please select a branch')
       return
     }
 
@@ -45,7 +68,7 @@ export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branch
       gender: formData.gender as 'Male' | 'Female' | 'Other',
       dob: formData.dob,
       workplace: formData.workplace,
-      branchId,
+      branchId: formData.selectedBranch,
       address: formData.address,
       nextOfKin: formData.nextOfKinName,
       nextOfKinPhone: formData.nextOfKinPhone
@@ -61,7 +84,8 @@ export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branch
       workplace: '',
       address: '',
       nextOfKinName: '',
-      nextOfKinPhone: ''
+      nextOfKinPhone: '',
+      selectedBranch: ''
     })
     onOpenChange(false)
   }
@@ -185,17 +209,25 @@ export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branch
 
           {/* select branch */}
           <div>
-            <Label htmlFor="branch">Branches</Label>
-            <select
-              id="gender"
-              value={formData.gender}
-              onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-              className="w-full px-3 py-2 border border-border rounded-md text-sm"
-            >
-              <option value="">Select</option>
-              {/* list available branch */}
-              {<option value="Male">Male</option>}
-            </select>
+            <Label htmlFor="branch">Branch *</Label>
+            {user?.role === UserRole.BRANCH_ADMIN ? (
+              <div className="px-3 py-2 border border-border rounded-md text-sm bg-muted">
+                {branches.find(b => b.id === user.branchId)?.name || 'Selected Branch'}
+              </div>
+            ) : (
+              <Select value={formData.selectedBranch} onValueChange={(value) => setFormData({ ...formData, selectedBranch: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map(branch => (
+                    <SelectItem key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="flex gap-2 justify-end pt-4">

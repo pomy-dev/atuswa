@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Share2, Heart } from 'lucide-react'
+import { Share2, Heart, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 import { Member, HelpDeskCase } from '@/lib/types'
 import Logo from '@/public/atuswa-logo.png'
 import { AddMemberModal } from '@/components/modals/add-member-modal'
@@ -18,6 +18,9 @@ export default function PublicWebsite() {
     branches: 3,
     cases: 0
   })
+  const [ongoingProjects, setOngoingProjects] = useState<any[]>([])
+  const [publishedArticles, setPublishedArticles] = useState<any[]>([])
+  const aboutSectionRef = useRef<HTMLDivElement>(null)
 
   const [showAddMemberModal, setShowAddMemberModal] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -29,10 +32,17 @@ export default function PublicWebsite() {
       const members = JSON.parse(localStorage.getItem('members') || '[]')
       const projects = JSON.parse(localStorage.getItem('projects') || '[]')
       const cases = JSON.parse(localStorage.getItem('helpdesk_cases') || '[]')
+      const articles = JSON.parse(localStorage.getItem('articles') || '[]')
+      
+      const ongoing = projects.filter((p: any) => p.status === 'ongoing')
+      const published = articles.filter((a: any) => a.published)
+      
+      setOngoingProjects(ongoing)
+      setPublishedArticles(published)
 
       setStatistics({
         members: members.length,
-        projects: projects.filter((p: any) => p.status === 'ongoing').length,
+        projects: ongoing.length,
         branches: 3,
         cases: cases.filter((c: any) => c.status !== 'completed').length
       })
@@ -117,10 +127,8 @@ export default function PublicWebsite() {
                   <Heart className="w-4 h-4" />
                   Join Us
                 </Button>
-                {/* scroll to about us section */}
-                <Button size="lg" variant="outline">Learn More</Button>
+                <Button size="lg" variant="outline" onClick={() => aboutSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}>Learn More</Button>
 
-                {/* show case-file modal */}
                 <button onClick={() => setShowFileModal(true)} className='bg-muted text-muted-foreground hover:bg-accent px-4 py-2 rounded-md font-medium text-sm whitespace-nowrap transition'>Grievances</button>
               </div>
             </div>
@@ -210,21 +218,167 @@ export default function PublicWebsite() {
           </div>
         )}
 
-        {/* OTHER TABS - Placeholder */}
-        {['articles', 'projects'].includes(activeTab) && (
-          <div className="text-center py-12">
-            <p className="text-2xl font-bold mb-4">
-              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Section
-            </p>
-            <p className="text-muted-foreground">
-              Content for {activeTab} will be displayed here
-            </p>
+        {/* PROJECTS TAB */}
+        {activeTab === 'projects' && (
+          <div className="space-y-6">
+            <h2 className="text-3xl font-bold">Ongoing Projects</h2>
+            {ongoingProjects.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">No ongoing projects at the moment</p>
+            ) : (
+              <div className="grid md:grid-cols-2 gap-6">
+                {ongoingProjects.map((project) => (
+                  <Card key={project.id} className="hover:shadow-lg transition overflow-hidden">
+                    <CardHeader className="pb-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <CardTitle className="text-xl">{project.title}</CardTitle>
+                          <CardDescription className="mt-2">{project.description}</CardDescription>
+                        </div>
+                        <div className="flex-shrink-0">
+                          <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                            {project.status}
+                          </span>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {project.phases && project.phases.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium mb-2">Phases:</p>
+                            <div className="space-y-2">
+                              {project.phases.map((phase: any, idx: number) => (
+                                <div key={idx} className="flex items-center gap-2 text-sm">
+                                  <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                  <span>{phase}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ARTICLES TAB */}
+        {activeTab === 'articles' && (
+          <div className="space-y-6">
+            <h2 className="text-3xl font-bold">Articles & Resources</h2>
+            {publishedArticles.length === 0 ? (
+              <div className="text-muted-foreground text-center py-8">
+                <p>No articles published yet. Check back soon!</p>
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 gap-6">
+                {publishedArticles.map(article => (
+                  <Card key={article.id} className="hover:shadow-lg transition overflow-hidden flex flex-col">
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <CardTitle className="text-lg">{article.title}</CardTitle>
+                          <CardDescription className="mt-2">{article.category}</CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="flex-1">
+                      <p className="text-sm text-muted-foreground line-clamp-4">{article.content}</p>
+                    </CardContent>
+                    <div className="px-6 pb-4 border-t pt-4">
+                      <p className="text-xs text-muted-foreground">
+                        Published on {new Date(article.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* About */}
-      <div className="max-w-7xl mx-auto px-4 py-12">
+      {/* About Us Section */}
+      <div ref={aboutSectionRef} className="max-w-7xl mx-auto px-4 py-16 space-y-8">
+        <div className="text-center mb-12">
+          <h2 className="text-4xl font-bold mb-4">About Atuswá Union</h2>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Learn about our mission, values, and commitment to workers' rights
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-8">
+          <Card className="border-none shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-2xl">Our Mission</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-muted-foreground">
+              <p>
+                Atuswá Union is dedicated to empowering workers through collective action, solidarity, and advocacy. We stand united in the fight for fair wages, safe working conditions, and the protection of fundamental labor rights.
+              </p>
+              <p>
+                Our mission extends beyond the workplace – we are committed to building stronger communities where workers have a voice and dignity is assured.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-2xl">Our Vision</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-muted-foreground">
+              <p>
+                We envision a future where all workers enjoy fair treatment, equitable compensation, and a safe environment. A future where collective strength ensures justice and dignity for everyone.
+              </p>
+              <p>
+                Through solidarity and unity, we strive to create lasting social change that benefits workers and their families across all sectors and industries.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="border-none shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-2xl">Our Values</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="p-4 bg-muted rounded-lg">
+                <h4 className="font-bold mb-2">Solidarity</h4>
+                <p className="text-sm text-muted-foreground">We stand together, united in purpose and action, supporting one another in our struggle for workers' rights.</p>
+              </div>
+              <div className="p-4 bg-muted rounded-lg">
+                <h4 className="font-bold mb-2">Justice</h4>
+                <p className="text-sm text-muted-foreground">We fight tirelessly for fair treatment, equitable wages, and the protection of fundamental human and labor rights.</p>
+              </div>
+              <div className="p-4 bg-muted rounded-lg">
+                <h4 className="font-bold mb-2">Advocacy</h4>
+                <p className="text-sm text-muted-foreground">We amplify the voices of workers, ensuring their concerns are heard and their rights are respected at all levels.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="bg-muted rounded-lg p-8">
+          <h3 className="text-2xl font-bold mb-4">Get in Touch</h3>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <h4 className="font-semibold mb-2">Contact Information</h4>
+              <p className="text-sm text-muted-foreground mb-1">Email: info@atuswa.org</p>
+              <p className="text-sm text-muted-foreground mb-1">Phone: +1 (555) 123-4567</p>
+              <p className="text-sm text-muted-foreground">Website: www.atuswa.com</p>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-2">Office Hours</h4>
+              <p className="text-sm text-muted-foreground mb-1">Monday - Friday: 9:00 AM - 5:00 PM</p>
+              <p className="text-sm text-muted-foreground mb-1">Saturday: 10:00 AM - 2:00 PM</p>
+              <p className="text-sm text-muted-foreground">Sunday: Closed</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* add member modal */}
