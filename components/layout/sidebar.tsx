@@ -15,7 +15,6 @@ import {
   FileText,
   Settings,
   Building2,
-  Users2,
   LogOut
 } from 'lucide-react'
 import { cn } from '@/lib/utils'

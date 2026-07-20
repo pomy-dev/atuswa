@@ -10,7 +10,9 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth-context'
 import { UserRole, Event } from '@/lib/types'
-import { Plus, Trash2, Calendar, MapPin, Upload, X, Users, Share2, Mail, MessageCircle, Facebook, Twitter } from 'lucide-react'
+import { Plus, Trash2, Calendar, MapPin, Upload, X, Users, Share2, Mail, MessageCircle } from 'lucide-react'
+import Twitter from '@/public/twitter.png'
+import Facebook from '@/public/facebook.png'
 
 interface Stakeholder {
   id: string
@@ -78,7 +80,7 @@ export default function EventsPage() {
     const previewUrl = URL.createObjectURL(file)
     setNewStakeholder(prev => ({ ...prev, imageFile: file, previewUrl }))
   }
-  
+
   const addStakeholder = async () => {
     if (!newStakeholder.name.trim() || !newStakeholder.profession.trim()) return
 
@@ -178,7 +180,7 @@ export default function EventsPage() {
           <div className="grid md:grid-cols-3 gap-4">
             <div>
               <Label>Sort By</Label>
-              <Select value={sortBy} onValueChange={(value: 'name' | 'date') => setSortBy(value)}>
+              <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'name' | 'date')}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -190,7 +192,7 @@ export default function EventsPage() {
             </div>
             <div>
               <Label>Sort Order</Label>
-              <Select value={sortOrder} onValueChange={(value: 'asc' | 'desc') => setSortOrder(value)}>
+              <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as 'asc' | 'desc')}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -473,7 +475,7 @@ export default function EventsPage() {
                       }}
                       title="Share on Facebook"
                     >
-                      <Facebook className="w-3 h-3" />
+                      <img src={Facebook.src} alt="F" className="w-3 h-3" />
                       Facebook
                     </Button>
                     <Button
@@ -486,7 +488,7 @@ export default function EventsPage() {
                       }}
                       title="Share on Twitter"
                     >
-                      <Twitter className="w-3 h-3" />
+                      <img src={Twitter.src} alt="X" className='w-3 h-3' />
                       Twitter
                     </Button>
                     <Button
