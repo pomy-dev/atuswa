@@ -347,15 +347,27 @@ export default function PublicWebsite() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-3">
+                      <div className="space-y-4">
+                        {project.budget && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Budget:</span>
+                            <span className="font-semibold">₦{project.budget?.toLocaleString()}</span>
+                          </div>
+                        )}
+                        {project.startDate && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Start Date:</span>
+                            <span className="font-semibold">{new Date(project.startDate).toLocaleDateString()}</span>
+                          </div>
+                        )}
                         {project.phases && project.phases.length > 0 && (
                           <div>
-                            <p className="text-sm font-medium mb-2">Phases:</p>
+                            <p className="text-sm font-medium mb-2">Phases ({project.phases.length}):</p>
                             <div className="space-y-2">
                               {project.phases.map((phase: any, idx: number) => (
                                 <div key={idx} className="flex items-center gap-2 text-sm">
                                   <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
-                                  <span>{phase}</span>
+                                  <span>{typeof phase === 'string' ? phase : phase.name || phase}</span>
                                 </div>
                               ))}
                             </div>
