@@ -131,6 +131,7 @@ export interface ProjectImage {
   id: string
   name: string
   url: string
+  size: number
   uploadedAt: Date
 }
 
@@ -138,6 +139,7 @@ export interface ProjectDocument {
   id: string
   name: string
   url: string
+  size: number
   uploadedAt: Date
 }
 
