@@ -165,11 +165,11 @@ export interface Project {
 
 // Event Types
 export interface EventFile {
-  id: string
-  name: string
-  url: string
-  type: 'image' | 'pdf'
-  uploadedAt: Date
+  id?: string
+  name?: string
+  url?: string
+  type?: 'image' | 'pdf'
+  uploadedAt?: Date
 }
 
 export interface EventInvitation {
@@ -219,10 +219,10 @@ export interface CaseNote {
 }
 
 export interface CaseDocument {
-  id: string
+  id?: string
   name: string
-  url: string
-  uploadedAt: Date
+  url?: string
+  uploadedAt?: Date
 }
 
 export interface HelpDeskCase {

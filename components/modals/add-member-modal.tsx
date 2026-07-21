@@ -140,7 +140,8 @@ export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branch
                 id="gender"
                 value={formData.gender}
                 onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                className="w-full px-3 py-2 border border-border rounded-md text-sm"
+                className="w-full px-3 py-2 border border-border bg-background text-foreground rounded-md text-sm 
+                    focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary appearance-none"
               >
                 <option value="">Select</option>
                 <option value="Male">Male</option>
@@ -216,7 +217,8 @@ export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branch
               </div>
             ) : (
               <select value={formData.selectedBranch} onChange={(e) => setFormData({ ...formData, selectedBranch: e.target.value })}
-                className='w-full px-3 py-2 border border-border rounded-md text-sm'
+                className="w-full px-3 py-2 border border-border bg-background text-foreground rounded-md text-sm 
+                focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary appearance-none"
               >
                 <option value=''>Select a branch</option>
                 {branches.map(branch => (

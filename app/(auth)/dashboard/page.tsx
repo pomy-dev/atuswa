@@ -118,6 +118,18 @@ export default function DashboardPage() {
     return { totalMembers, totalIncome, totalExpense, balance, activeProjects, openCases }
   }, [])
 
+  const generateUniqueColors = (count: number): string[] => {
+    const colors: string[] = [];
+
+    for (let i = 0; i < count; i++) {
+      // Generate nice, distinguishable colors using HSL
+      const hue = (i * 137.5) % 360; // Golden angle for good distribution
+      colors.push(`hsl(${hue}, 85%, 58%)`);
+    }
+
+    return colors;
+  };
+
   const chartData = useMemo(() => {
     const financialRecords = JSON.parse(localStorage.getItem('financialRecords') || '[]')
     const monthlyData = {
@@ -159,7 +171,9 @@ export default function DashboardPage() {
     }))
   }, [])
 
-  const COLORS = ['#1c0facff', '#f633ef', '#f98220']
+  const pieColors = useMemo(() => {
+    return generateUniqueColors(branchData.length);
+  }, [branchData.length]);
 
   return (
     <div className="p-6 space-y-6">
@@ -174,21 +188,19 @@ export default function DashboardPage() {
       <div className="flex gap-2 border-b">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2 font-medium text-sm border-b-2 transition ${
-            activeTab === 'overview'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition ${activeTab === 'overview'
+            ? 'border-primary text-primary'
+            : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
         >
           Overview
         </button>
         <button
           onClick={() => setActiveTab('articles')}
-          className={`px-4 py-2 font-medium text-sm border-b-2 transition ${
-            activeTab === 'articles'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition ${activeTab === 'articles'
+            ? 'border-primary text-primary'
+            : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
         >
           Articles & Content
         </button>
@@ -198,142 +210,147 @@ export default function DashboardPage() {
       {activeTab === 'overview' && (
         <div className="space-y-6">
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Members</CardTitle>
-            <Users className="w-4 h-4 text-accent" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalMembers}</div>
-            <p className="text-xs text-muted-foreground mt-1">Active members across all branches</p>
-          </CardContent>
-        </Card>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Members</CardTitle>
+                <Users className="w-4 h-4 text-accent" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalMembers}</div>
+                <p className="text-xs text-muted-foreground mt-1">Active members across all branches</p>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Balance</CardTitle>
-            <DollarSign className="w-4 h-4 text-accent" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">E{(stats.balance / 1000).toFixed(0)}K</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              <span className="text-green-600 font-semibold">+E{(stats.totalIncome / 1000).toFixed(0)}K</span> income
-            </p>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Balance</CardTitle>
+                <DollarSign className="w-4 h-4 text-accent" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">E{(stats.balance / 1000).toFixed(0)}K</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  <span className="text-green-600 font-semibold">+E{(stats.totalIncome / 1000).toFixed(0)}K</span> income
+                </p>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Projects</CardTitle>
-            <Briefcase className="w-4 h-4 text-accent" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activeProjects}</div>
-            <p className="text-xs text-muted-foreground mt-1">Currently in progress</p>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Active Projects</CardTitle>
+                <Briefcase className="w-4 h-4 text-accent" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.activeProjects}</div>
+                <p className="text-xs text-muted-foreground mt-1">Currently in progress</p>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Open Cases</CardTitle>
-            <AlertCircle className="w-4 h-4 text-accent" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.openCases}</div>
-            <p className="text-xs text-muted-foreground mt-1">Pending resolution</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Income vs Expenses</CardTitle>
-            <CardDescription>Monthly financial overview</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="income" fill="#476bf9ff" name="Income" />
-                <Bar dataKey="expense" fill="#f84c57ff" name="Expense" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Members by Branch</CardTitle>
-            <CardDescription>Distribution across regions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={branchData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, value }) => `${name}: ${value}`}
-                  outerRadius={80}
-                  fill="#f6be17ff"
-                  dataKey="value"
-                >
-                  {branchData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Activity */}
-      <Card>
-        <CardHeader>
-          <CardTitle>System Status</CardTitle>
-          <CardDescription>Quick overview of active modules</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="flex flex-col items-center p-4 bg-card rounded-lg border border-border">
-              <Users className="w-6 h-6 text-accent mb-2" />
-              <span className="text-sm font-semibold">Members</span>
-              <span className="text-xs text-muted-foreground mt-1">Active</span>
-            </div>
-            <div className="flex flex-col items-center p-4 bg-card rounded-lg border border-border">
-              <DollarSign className="w-6 h-6 text-accent mb-2" />
-              <span className="text-sm font-semibold">Financial</span>
-              <span className="text-xs text-muted-foreground mt-1">Tracked</span>
-            </div>
-            <div className="flex flex-col items-center p-4 bg-card rounded-lg border border-border">
-              <Briefcase className="w-6 h-6 text-accent mb-2" />
-              <span className="text-sm font-semibold">Projects</span>
-              <span className="text-xs text-muted-foreground mt-1">{stats.activeProjects} Active</span>
-            </div>
-            <div className="flex flex-col items-center p-4 bg-card rounded-lg border border-border">
-              <AlertCircle className="w-6 h-6 text-accent mb-2" />
-              <span className="text-sm font-semibold">Helpdesk</span>
-              <span className="text-xs text-muted-foreground mt-1">{stats.openCases} Open</span>
-            </div>
-            <div className="flex flex-col items-center p-4 bg-card rounded-lg border border-border">
-              <Badge variant="secondary" className="mb-2">v1.0</Badge>
-              <span className="text-sm font-semibold">System</span>
-              <span className="text-xs text-muted-foreground mt-1">Online</span>
-            </div>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Open Cases</CardTitle>
+                <AlertCircle className="w-4 h-4 text-accent" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.openCases}</div>
+                <p className="text-xs text-muted-foreground mt-1">Pending resolution</p>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle>Income vs Expenses</CardTitle>
+                <CardDescription>Monthly financial overview</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="income" fill="#476bf9ff" name="Income" />
+                    <Bar dataKey="expense" fill="#f84c57ff" name="Expense" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Members by Branch</CardTitle>
+                <CardDescription>Distribution across regions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={branchData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, value }) => `${name}: ${value}`}
+                      outerRadius={80}
+                      fill="#f6be17ff"
+                      dataKey="value"
+                    >
+                      {branchData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={pieColors[index]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend
+                      verticalAlign="bottom"
+                      height={36}
+                      iconType="circle"
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Recent Activity */}
+          <Card>
+            <CardHeader>
+              <CardTitle>System Status</CardTitle>
+              <CardDescription>Quick overview of active modules</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="flex flex-col items-center p-4 bg-card rounded-lg border border-border">
+                  <Users className="w-6 h-6 text-accent mb-2" />
+                  <span className="text-sm font-semibold">Members</span>
+                  <span className="text-xs text-muted-foreground mt-1">Active</span>
+                </div>
+                <div className="flex flex-col items-center p-4 bg-card rounded-lg border border-border">
+                  <DollarSign className="w-6 h-6 text-accent mb-2" />
+                  <span className="text-sm font-semibold">Financial</span>
+                  <span className="text-xs text-muted-foreground mt-1">Tracked</span>
+                </div>
+                <div className="flex flex-col items-center p-4 bg-card rounded-lg border border-border">
+                  <Briefcase className="w-6 h-6 text-accent mb-2" />
+                  <span className="text-sm font-semibold">Projects</span>
+                  <span className="text-xs text-muted-foreground mt-1">{stats.activeProjects} Active</span>
+                </div>
+                <div className="flex flex-col items-center p-4 bg-card rounded-lg border border-border">
+                  <AlertCircle className="w-6 h-6 text-accent mb-2" />
+                  <span className="text-sm font-semibold">Helpdesk</span>
+                  <span className="text-xs text-muted-foreground mt-1">{stats.openCases} Open</span>
+                </div>
+                <div className="flex flex-col items-center p-4 bg-card rounded-lg border border-border">
+                  <Badge variant="secondary" className="mb-2">v1.0</Badge>
+                  <span className="text-sm font-semibold">System</span>
+                  <span className="text-xs text-muted-foreground mt-1">Online</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -384,7 +401,8 @@ export default function DashboardPage() {
                     id="category"
                     value={articleForm.category}
                     onChange={(e) => setArticleForm({ ...articleForm, category: e.target.value })}
-                    className="w-full px-3 py-2 border border-border rounded-md text-sm"
+                    className="w-full px-3 py-2 border border-border bg-background text-foreground rounded-md text-sm 
+                      focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary appearance-none"
                   >
                     <option value="General">General</option>
                     <option value="News">News</option>
@@ -399,7 +417,7 @@ export default function DashboardPage() {
                   <div className="flex gap-2 items-end">
                     <div className="flex-1">
                       <label>
-                        <Button type="button" variant="outline" className="w-full">
+                        <Button type="button" onClick={() => document.getElementById("featuredImage")?.click()} variant="outline" className="w-full">
                           Choose Image
                         </Button>
                         <input
@@ -422,31 +440,34 @@ export default function DashboardPage() {
                     )}
                   </div>
                   {articleForm.featuredImage && (
-                    <div className="mt-2">
-                      <img src={articleForm.featuredImage} alt="Featured" className="w-full h-40 object-cover rounded" />
+                    <div className='flex flex-wrap items-start gap-8 mt-6'>
+                      <div>
+                        <img src={articleForm.featuredImage} alt="Featured" className="w-40 h-40 object-stretch rounded" />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="imageCaption">Caption</Label>
+                        <Textarea
+                          id="imageCaption"
+                          className='w-2xl'
+                          placeholder="Add a caption for the featured image"
+                          value={articleForm.featuredImageCaption}
+                          onChange={(e) => setArticleForm({ ...articleForm, featuredImageCaption: e.target.value })}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {articleForm.featuredImage && (
-                  <div>
-                    <Label htmlFor="imageCaption">Image Caption</Label>
-                    <Input
-                      id="imageCaption"
-                      placeholder="Add a caption for the featured image"
-                      value={articleForm.featuredImageCaption}
-                      onChange={(e) => setArticleForm({ ...articleForm, featuredImageCaption: e.target.value })}
-                    />
-                  </div>
-                )}
-
                 <div>
                   <Label>Attach Files</Label>
                   <label>
-                    <Button type="button" variant="outline" className="w-full">
+                    <Button type="button" onClick={() => document.getElementById("articleFile")?.click()} variant="outline" className="w-full">
                       Upload Files
                     </Button>
+                    
                     <input
+                      id='articleFile'
                       type="file"
                       multiple
                       onChange={handleFileUpload}

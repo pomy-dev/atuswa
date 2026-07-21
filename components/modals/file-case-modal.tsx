@@ -22,11 +22,11 @@ interface FileCaseModalProps {
 export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileCaseModalProps) {
   const { user } = useAuth()
   const [branches] = useState([
-    { id: 'lagos', name: 'Lagos Branch' },
-    { id: 'abuja', name: 'Abuja Branch' },
-    { id: 'port-harcourt', name: 'Port Harcourt Branch' }
+    { id: 'lagos', name: 'Manzini Branch' },
+    { id: 'abuja', name: 'Siteki Branch' },
+    { id: 'port-harcourt', name: 'Mhlume Branch' }
   ])
-  
+
   const [formData, setFormData] = useState({
     title: '',
     memberName: '',
@@ -44,7 +44,7 @@ export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileC
     if (!files) return
 
     const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-    
+
     Array.from(files).forEach(file => {
       if (validTypes.includes(file.type) && file.size <= 5 * 1024 * 1024) {
         setUploadedFiles(prev => [...prev, file])
@@ -54,7 +54,7 @@ export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileC
         }))
       }
     })
-    
+
     e.target.value = ''
   }
 
@@ -143,18 +143,17 @@ export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileC
           {!user && (
             <div>
               <Label htmlFor="branch">Branch *</Label>
-              <Select value={formData.branchId} onValueChange={(value) => setFormData({ ...formData, branchId: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  {branches.map(branch => (
-                    <SelectItem key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select value={formData.branchId} onChange={(e) => setFormData({ ...formData, branchId: e.target.value })}
+                className="w-full px-3 py-2 border border-border bg-background text-foreground rounded-md text-sm 
+                      focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary appearance-none"
+              >
+                <option value="">Select a branch</option>
+                {branches.map(branch => (
+                  <option key={branch.id} value={branch.name}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
@@ -206,7 +205,7 @@ export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileC
                 />
               </label>
             </div>
-            
+
             {/* Display uploaded files as badges */}
             {uploadedFiles.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">

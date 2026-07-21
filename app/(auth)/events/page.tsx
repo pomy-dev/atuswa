@@ -9,16 +9,28 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth-context'
-import { UserRole, Event } from '@/lib/types'
-import { Plus, Trash2, Calendar, MapPin, Upload, X, Users, Share2, Mail, MessageCircle } from 'lucide-react'
+import { UserRole, Event, EventInvitation } from '@/lib/types'
+import { Plus, Trash2, Calendar, MapPin, Upload, X, Users, Share2, Mail, MessageCircle, FileText } from 'lucide-react'
 import Twitter from '@/public/twitter.png'
 import Facebook from '@/public/facebook.png'
+import { EventInviteModal } from '@/components/modals/event-invite-modal'
 
 interface Stakeholder {
   id: string
   name: string
   profession: string
   image?: string // base64 image
+}
+
+interface EventImage {
+  url: string;
+  caption?: string;
+}
+
+interface EventFile {
+  url: string;
+  name: string;
+  caption?: string;
 }
 
 export default function EventsPage() {
@@ -45,6 +57,18 @@ export default function EventsPage() {
     imageFile: null as File | null,
     previewUrl: '' as string,
   })
+
+  const [images, setImages] = useState<EventImage[]>([])
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imageCaption, setImageCaption] = useState<string>('')
+  const [files, setFiles] = useState<EventFile[]>([])
+  const [fileFile, setFileFile] = useState<File | null>(null)
+  const [fileCaption, setFileCaption] = useState<string>('')
+
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+
+  const [isInviting, setIsInviting] = useState(false)
 
   // Load events and branches
   useEffect(() => {
@@ -110,6 +134,54 @@ export default function EventsPage() {
     setStakeholders(stakeholders.filter(s => s.id !== id))
   }
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageFile(file)
+  }
+
+  const addImage = async () => {
+    if (!imageFile) return
+
+    const imageUrl = await new Promise<string>((resolve) => {
+      const reader = new FileReader()
+      reader.onload = (e) => resolve(e.target?.result as string)
+      reader.readAsDataURL(imageFile)
+    })
+
+    setImages([...images, { url: imageUrl, caption: imageCaption }])
+    setImageFile(null)
+    setImageCaption('')
+  }
+
+  const removeImage = (index: number) => {
+    setImages(images.filter((_, i) => i !== index))
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFileFile(file)
+  }
+
+  const addFile = async () => {
+    if (!fileFile) return
+
+    const fileUrl = await new Promise<string>((resolve) => {
+      const reader = new FileReader()
+      reader.onload = (e) => resolve(e.target?.result as string)
+      reader.readAsDataURL(fileFile)
+    })
+
+    setFiles([...files, { url: fileUrl, name: fileFile.name, caption: fileCaption }])
+    setFileFile(null)
+    setFileCaption('')
+  }
+
+  const removeFile = (index: number) => {
+    setFiles(files.filter((_, i) => i !== index))
+  }
+
   const handleAddEvent = () => {
     if (!formData.title || !formData.date || !formData.location) return
 
@@ -121,8 +193,8 @@ export default function EventsPage() {
       date: new Date(formData.date),
       location: formData.location,
       stakeholders: stakeholders.map(s => s.name),
-      images: [],
-      documents: [],
+      images: images.map(img => ({ url: img.url, caption: img.caption })), // Save images with captions
+      documents: files.map(file => ({ url: file.url, name: file.name, caption: file.caption })), // Save files with captions
       invitations: [],
       createdBy: user!.id,
       createdAt: new Date(),
@@ -138,6 +210,8 @@ export default function EventsPage() {
   const resetForm = () => {
     setFormData({ title: '', notes: '', date: '', location: '' })
     setStakeholders([])
+    setImages([])
+    setFiles([])
     setShowForm(false)
   }
 
@@ -160,6 +234,51 @@ export default function EventsPage() {
       }
       return sortOrder === 'asc' ? comparison : -comparison
     })
+
+  const handleInviteClick = (eventId: string) => {
+    setSelectedEventId(eventId)
+    setShowInviteModal(true)
+  }
+
+  const handleInviteSuccess = (newInvitations: EventInvitation[], eventId: string) => {
+    if (!newInvitations.length) return
+
+    try {
+      setIsInviting(true)
+      // Update localStorage
+      const allEvents: Event[] = JSON.parse(localStorage.getItem('events') || '[]')
+
+      const updatedEvents = allEvents.map((event: Event) => {
+        if (event.id === eventId) {
+          const currentInvitations = event.invitations || []
+          return {
+            ...event,
+            invitations: [...currentInvitations, ...newInvitations]
+          }
+        }
+        return event
+      })
+
+      localStorage.setItem('events', JSON.stringify(updatedEvents))
+
+      // Update local state
+      setEvents(prevEvents =>
+        prevEvents.map(event =>
+          event.id === eventId
+            ? { ...event, invitations: [...(event.invitations || []), ...newInvitations] }
+            : event
+        )
+      )
+
+      // Optional: Show success toast/notification
+      // You can replace this with a proper toast library later
+      alert(`✅ ${newInvitations.length} invitation(s) sent successfully!`)
+    } catch (err) {
+      console.error('Error occurred', err)
+    } finally {
+      setIsInviting(false)
+    }
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -267,6 +386,103 @@ export default function EventsPage() {
               />
             </div>
 
+            {/* === IMAGES WITH CAPTIONS === */}
+            <div className="border rounded-xl p-5 bg-muted/30">
+              <Label className="text-lg font-semibold mb-4 block">Event Images</Label>
+              <div className="flex gap-3 mb-4 items-end">
+                <div className="flex-1">
+                  <label className="cursor-pointer">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => document.getElementById('event-image-upload')?.click()}
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      {imageFile ? imageFile.name : 'Upload Image'}
+                    </Button>
+                    <input
+                      id="event-image-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                    />
+                  </label>
+                </div>
+                <Input
+                  placeholder="Image Caption (optional)"
+                  value={imageCaption}
+                  onChange={(e) => setImageCaption(e.target.value)}
+                  className="flex-1"
+                />
+                <Button onClick={addImage} disabled={!imageFile}>Add Image</Button>
+              </div>
+
+              {/* Image Previews */}
+              {images.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                  {images.map((img, idx) => (
+                    <div key={idx} className="border rounded-xl p-4 bg-white">
+                      <img src={img.url} alt={img.caption || "Event Image"} className="w-full h-32 object-cover rounded mb-2" />
+                      {img.caption && <p className="text-sm text-muted-foreground mb-2">{img.caption}</p>}
+                      <Button variant="ghost" size="sm" onClick={() => removeImage(idx)} className="text-destructive">
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* === FILES WITH CAPTIONS === */}
+            <div className="border rounded-xl p-5 bg-muted/30">
+              <Label className="text-lg font-semibold mb-4 block">Attached Files</Label>
+              <div className="flex gap-3 mb-4 items-end">
+                <div className="flex-1">
+                  <label className="cursor-pointer">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => document.getElementById('event-file-upload')?.click()}
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      {fileFile ? fileFile.name : 'Upload File'}
+                    </Button>
+                    <input
+                      id="event-file-upload"
+                      type="file"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                    />
+                  </label>
+                </div>
+                <Input
+                  placeholder="File Caption (optional)"
+                  value={fileCaption}
+                  onChange={(e) => setFileCaption(e.target.value)}
+                  className="flex-1"
+                />
+                <Button onClick={addFile} disabled={!fileFile}>Add File</Button>
+              </div>
+
+              {/* File Previews */}
+              {files.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                  {files.map((file, idx) => (
+                    <div key={idx} className="border rounded-xl p-4 bg-white">
+                      <p className="font-semibold text-sm truncate">{file.name}</p>
+                      {file.caption && <p className="text-sm text-muted-foreground mb-2">{file.caption}</p>}
+                      <Button variant="ghost" size="sm" onClick={() => removeFile(idx)} className="text-destructive">
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* === STAKEHOLDERS WITH IMAGE UPLOAD & PREVIEW === */}
             <div className="border rounded-xl p-5 bg-muted/30">
               <Label className="text-lg font-semibold mb-4 block">Stakeholders</Label>
@@ -305,7 +521,6 @@ export default function EventsPage() {
               </div>
 
               {/* Current Stakeholder Image Preview */}
-              {/* Live Preview of Selected Image */}
               {newStakeholder.previewUrl && (
                 <div className="mb-6 p-4 border rounded-lg bg-white">
                   <p className="text-sm text-muted-foreground font-medium mb-3">Selected Photo Preview:</p>
@@ -521,14 +736,35 @@ export default function EventsPage() {
                       More
                     </Button>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    <strong>Invites: {event.stakeholders?.length || 0}</strong> people invited
-                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => handleInviteClick(event.id)}
+                    title="Invite people"
+                  >
+                    <Users className="w-3 h-3" />
+                    Invite ({event.invitations?.length || 0})
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           ))
         )}
+
+        <EventInviteModal
+          open={showInviteModal}
+          onOpenChange={setShowInviteModal}
+          onSubmit={(invitations) => {
+            if (selectedEventId) {
+              handleInviteSuccess(invitations, selectedEventId)
+            }
+          }}
+          isLoading={false}
+          existingInvitations={
+            events.find(e => e.id === selectedEventId)?.invitations || []
+          }
+        />
       </div>
     </div >
   )
