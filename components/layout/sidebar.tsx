@@ -37,13 +37,13 @@ export function Sidebar() {
       roles: [UserRole.SECRETARY_GENERAL]
     },
     {
-      label: 'Board Members',
+      label: 'NEC Members',
       href: '/board',
       icon: UserCog,
       roles: [UserRole.SECRETARY_GENERAL]
     },
     {
-      label: 'NEC Members',
+      label: 'Atuswa Members',
       href: '/members',
       icon: Users,
       roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN]
@@ -58,13 +58,13 @@ export function Sidebar() {
       label: 'Projects',
       href: '/projects',
       icon: Briefcase,
-      roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.PROJECT_COORDINATOR]
+      roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.PROJECT_COORDINATOR, UserRole.TREASURER]
     },
     {
       label: 'Events',
       href: '/events',
       icon: Calendar,
-      roles: [UserRole.SECRETARY_GENERAL, UserRole.EVENTS_MANAGER, UserRole.BRANCH_ADMIN]
+      roles: [UserRole.SECRETARY_GENERAL, UserRole.EVENTS_MANAGER, UserRole.BRANCH_ADMIN, UserRole.TREASURER]
     },
     {
       label: 'Grievances',

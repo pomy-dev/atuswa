@@ -73,7 +73,7 @@ export default function PublicWebsite() {
     )
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()); // Upcoming first
 
-  console.log(filteredEvents[0])
+  // console.log(filteredEvents[0])
 
   const handleFileCase = async (caseData: Partial<HelpDeskCase>) => {
     setIsLoading(true)
@@ -698,7 +698,7 @@ export default function PublicWebsite() {
           {event.images && (
             <div className="md:w-3/10 relative">
               <img
-                src={event.images[0].url}
+                src={event.images[0]?.url}
                 alt={event.title}
                 className="w-full object-stretch aspect-video md:aspect-auto"
               />
