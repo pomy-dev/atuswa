@@ -49,7 +49,7 @@ export default function BoardPage() {
         </Button>
       </div>
 
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {members.map((member) => (
           <Card key={member.id} className="hover:shadow-md transition-shadow">
             <CardContent className="pt-6">

@@ -173,7 +173,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Welcome back to Atuswá Union Management System</p>
+          <p className="text-muted-foreground mt-1">Welcome back to TUCOSWA Management System</p>
         </div>
       </div>
 
@@ -458,7 +458,7 @@ export default function DashboardPage() {
                     <Button type="button" onClick={() => document.getElementById("articleFile")?.click()} variant="outline" className="w-full">
                       Upload Files
                     </Button>
-                    
+
                     <input
                       id='articleFile'
                       type="file"

@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('sg@xn--atusw-1qa.org')
+  const [email, setEmail] = useState('sg@tucoswa.org')
   const [password, setPassword] = useState('demo123')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -37,7 +37,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-accent/5 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl">Atuswá Union</CardTitle>
+          <CardTitle className="text-2xl">TUCOSWA</CardTitle>
           <CardDescription>Management System</CardDescription>
         </CardHeader>
         <CardContent>
@@ -59,7 +59,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
               />
-              <p className="text-xs text-muted-foreground">Demo: sg@xn--atusw-1qa.org</p>
+              <p className="text-xs text-muted-foreground">Demo: sg@tucoswa.org</p>
             </div>
 
             <div className="space-y-2">
@@ -83,11 +83,11 @@ export default function LoginPage() {
           <div className="mt-6 p-3 bg-accent/10 rounded-lg">
             <p className="text-xs font-semibold mb-2">Demo Accounts:</p>
             <ul className="text-xs space-y-1 text-muted-foreground">
-              <li>• Secretary General: sg@xn--atusw-1qa.org</li>
-              <li>• Branch Admin: branch@xn--atusw-1qa.org</li>
-              <li>• Treasurer: treasurer@xn--atusw-1qa.org</li>
-              <li>• Project Coord: projects@xn--atusw-1qa.org</li>
-              <li>• Events Manager: events@xn--atusw-1qa.org</li>
+              <li>• Secretary General: sg@tucoswa.org</li>
+              <li>• Branch Admin: branch@tucoswa.org</li>
+              <li>• Treasurer: treasurer@tucoswa.org</li>
+              <li>• Project Coord: projects@tucoswa.org</li>
+              <li>• Events Manager: events@tucoswa.org</li>
             </ul>
             <p className="text-xs mt-2 font-semibold">Password: demo123</p>
           </div>

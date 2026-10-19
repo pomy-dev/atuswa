@@ -22,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-background">
       <head>
-        <title>Atuswá Union - Management System</title>
+        <title>TUCOSWA - Management System</title>
         <meta name="description" content="Union Management System" />
       </head>
       <body className="antialiased bg-background">

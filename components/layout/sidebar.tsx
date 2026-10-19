@@ -43,7 +43,7 @@ export function Sidebar() {
       roles: [UserRole.SECRETARY_GENERAL]
     },
     {
-      label: 'Atuswa Members',
+      label: 'Tucoswa Members',
       href: '/members',
       icon: Users,
       roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN]
@@ -91,7 +91,7 @@ export function Sidebar() {
   return (
     <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
       <div className="p-6 border-b border-sidebar-border">
-        <h1 className="text-xl font-bold text-sidebar-foreground">Atuswá Union</h1>
+        <h1 className="text-xl font-bold text-sidebar-foreground">Tucoswa Union</h1>
         <p className="text-xs text-sidebar-foreground/70 mt-1">Management System</p>
       </div>
 

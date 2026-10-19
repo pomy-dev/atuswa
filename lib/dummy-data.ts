@@ -18,7 +18,7 @@ import {
 export const dummyUsers: User[] = [
   {
     id: 'user_1',
-    email: 'sg@atuswa.org',
+    email: 'sg@tucoswa.org',
     name: 'Ngcebo Simelane',
     role: UserRole.SECRETARY_GENERAL,
     branchId: 'branch_main',
@@ -27,7 +27,7 @@ export const dummyUsers: User[] = [
   },
   {
     id: 'user_2',
-    email: 'branch@atuswa.org',
+    email: 'branch@tucoswa.org',
     name: 'Sarah Mkhonta',
     role: UserRole.BRANCH_ADMIN,
     branchId: 'branch_1',
@@ -36,7 +36,7 @@ export const dummyUsers: User[] = [
   },
   {
     id: 'user_3',
-    email: 'treasurer@atuswa.org',
+    email: 'treasurer@tucoswa.org',
     name: 'James Lukhele',
     role: UserRole.TREASURER,
     branchId: 'branch_main',
@@ -45,7 +45,7 @@ export const dummyUsers: User[] = [
   },
   {
     id: 'user_4',
-    email: 'projects@atuswa.org',
+    email: 'projects@tucoswa.org',
     name: 'Maria Santos',
     role: UserRole.PROJECT_COORDINATOR,
     branchId: 'branch_2',
@@ -54,7 +54,7 @@ export const dummyUsers: User[] = [
   },
   {
     id: 'user_5',
-    email: 'events@atuswa.org',
+    email: 'events@tucoswa.org',
     name: 'David Thompson',
     role: UserRole.EVENTS_MANAGER,
     branchId: 'branch_1',
@@ -91,7 +91,7 @@ export const dummyBoardMembers: BoardMember[] = [
   {
     id: 'board_1',
     name: 'Ngcebo Simelane',
-    email: 'ngcebo@atuswa.org',
+    email: 'ngcebo@tucoswa.org',
     position: 'Secretary General',
     responsibilities: 'Overall leadership and strategic direction',
     branchId: 'branch_main',
@@ -101,7 +101,7 @@ export const dummyBoardMembers: BoardMember[] = [
   {
     id: 'board_2',
     name: 'Amara Obi',
-    email: 'amara@atuswa.org',
+    email: 'amara@tucoswa.org',
     position: 'Vice Secretary',
     responsibilities: 'Deputy to Secretary General',
     branchId: 'branch_main',
@@ -111,7 +111,7 @@ export const dummyBoardMembers: BoardMember[] = [
   {
     id: 'board_3',
     name: 'Siza Maseko',
-    email: 'siza@atuswa.org',
+    email: 'siza@tucoswa.org',
     position: 'General Treasurer',
     responsibilities: 'Financial management and reporting',
     branchId: 'branch_main',
@@ -416,6 +416,23 @@ export const dummyHelpDeskCases: HelpDeskCase[] = [
 ]
 
 export function initializeDummyData() {
+  const storedUsers = localStorage.getItem('users')
+  if (storedUsers) {
+    const users = JSON.parse(storedUsers)
+    const migratedUsers = users.map((user: User) => ({
+      ...user,
+      email: user.email.replace(/@xn--atusw-1qa\.org$/i, '@tucoswa.org')
+    }))
+    localStorage.setItem('users', JSON.stringify(migratedUsers))
+  }
+
+  const storedAuthUser = localStorage.getItem('auth_user')
+  if (storedAuthUser) {
+    const authUser = JSON.parse(storedAuthUser) as User
+    authUser.email = authUser.email.replace(/@xn--atusw-1qa\.org$/i, '@tucoswa.org')
+    localStorage.setItem('auth_user', JSON.stringify(authUser))
+  }
+
   if (!localStorage.getItem('users')) {
     localStorage.setItem('users', JSON.stringify(dummyUsers))
   }

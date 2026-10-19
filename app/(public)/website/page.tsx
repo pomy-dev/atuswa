@@ -9,7 +9,7 @@ import { Heart, CheckCircle, Clock, AlertCircle, Mail, MessageCircle } from 'luc
 import Twitter from '@/public/twitter.png'
 import Facebook from '@/public/facebook.png'
 import { Member, HelpDeskCase } from '@/lib/types'
-import Logo from '@/public/atuswa-logo.png'
+import Logo from '@/public/logo.jpg'
 import { AddMemberModal } from '@/components/modals/add-member-modal'
 import { FileCaseModal } from '@/components/modals/file-case-modal'
 
@@ -114,8 +114,8 @@ export default function PublicWebsite() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex flex-wrap items-center text-2xl font-bold text-primary gap-4">
-              <img src={Logo.src} alt="atuswa" className='h-10 w-10 object-fit-stretch border-radius-10' />
-              Atuswá Union
+              <img src={Logo.src} alt="Tucoswa" className='h-10 w-10 object-fit-stretch border-radius-10' />
+              Tucoswa Union
             </div>
             <div className="flex gap-1 overflow-x-auto">
               {tabs.map((tab) => (
@@ -144,7 +144,7 @@ export default function PublicWebsite() {
           <div className="space-y-12">
             {/* Hero Section */}
             <div className="bg-gradient-to-r from-primary/20 to-accent/20 rounded-2xl p-12 text-center">
-              <h1 className="text-5xl font-bold mb-4">Atuswá Union</h1>
+              <h1 className="text-5xl font-bold mb-4">TUCOSWA</h1>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
                 Empowering workers through solidarity, advocacy, and collective action for better working conditions and social justice.
               </p>
@@ -346,7 +346,7 @@ export default function PublicWebsite() {
             <div className="flex items-end justify-between">
               <div>
                 <h2 className="text-3xl font-bold">Articles & Resources</h2>
-                <p className="text-muted-foreground mt-1">Latest updates, news, and important resources from Atuswá Union</p>
+                <p className="text-muted-foreground mt-1">Latest updates, news, and important resources from TUCOSWA</p>
               </div>
               <div className="text-sm text-muted-foreground">
                 {publishedArticles.length} article{publishedArticles.length !== 1 ? 's' : ''}
@@ -389,7 +389,7 @@ export default function PublicWebsite() {
       {/* About Us Section */}
       <div ref={aboutSectionRef} className="max-w-7xl mx-auto px-4 py-16 space-y-8">
         <div className="text-center mb-12">
-          <h2 className="text-4xl font-bold mb-4">About Atuswá Union</h2>
+          <h2 className="text-4xl font-bold mb-4">About TUCOSWA</h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Learn about our mission, values, and commitment to workers' rights
           </p>
@@ -402,7 +402,7 @@ export default function PublicWebsite() {
             </CardHeader>
             <CardContent className="space-y-4 text-muted-foreground">
               <p>
-                Atuswá Union is dedicated to empowering workers through collective action, solidarity, and advocacy. We stand united in the fight for fair wages, safe working conditions, and the protection of fundamental labor rights.
+                TUCOSWA is dedicated to empowering workers through collective action, solidarity, and advocacy. We stand united in the fight for fair wages, safe working conditions, and the protection of fundamental labor rights.
               </p>
               <p>
                 Our mission extends beyond the workplace – we are committed to building stronger communities where workers have a voice and dignity is assured.
@@ -452,9 +452,9 @@ export default function PublicWebsite() {
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <h4 className="font-semibold mb-2">Contact Information</h4>
-              <p className="text-sm text-muted-foreground mb-1">Email: info@atuswa.org</p>
+              <p className="text-sm text-muted-foreground mb-1">Email: info@tucoswa.org</p>
               <p className="text-sm text-muted-foreground mb-1">Phone: +1 (555) 123-4567</p>
-              <p className="text-sm text-muted-foreground">Website: www.atuswa.com</p>
+              <p className="text-sm text-muted-foreground">Website: www.tucoswa.com</p>
             </div>
             <div>
               <h4 className="font-semibold mb-2">Office Hours</h4>
@@ -514,7 +514,7 @@ export default function PublicWebsite() {
       {/* Footer */}
       <footer className="bg-muted mt-12 py-8 border-t">
         <div className="max-w-7xl mx-auto px-4 text-center text-muted-foreground">
-          <p>&copy; 2026 Atuswá Union. All rights reserved.</p>
+          <p>&copy; 2026 TUCOSWA. All rights reserved.</p>
         </div>
       </footer>
     </div>
@@ -604,7 +604,7 @@ export default function PublicWebsite() {
 
           {/* Footer */}
           <div className="p-6 border-t bg-muted/30 text-center text-sm text-muted-foreground">
-            Atuswá Union • Empowering Workers
+            TUCOSWA • Empowering Workers
           </div>
         </div>
       </div>
