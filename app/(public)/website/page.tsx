@@ -3,18 +3,14 @@
 import { useEffect, useState, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
-import { Heart, CheckCircle, Clock, AlertCircle, Mail, MessageCircle } from 'lucide-react'
+import { ArrowRight, BookOpen, CheckCircle, Clock, Handshake, Heart, Mail, MapPin, Megaphone, MessageCircle, Scale, ShieldCheck, Sparkles, UsersRound } from 'lucide-react'
 import Twitter from '@/public/twitter.png'
 import Facebook from '@/public/facebook.png'
 import { Member, HelpDeskCase } from '@/lib/types'
-import Logo from '@/public/logo.jpg'
 import { AddMemberModal } from '@/components/modals/add-member-modal'
 import { FileCaseModal } from '@/components/modals/file-case-modal'
 
 export default function PublicWebsite() {
-  const [activeTab, setActiveTab] = useState('home')
   const [statistics, setStatistics] = useState({
     members: 0,
     projects: 0,
@@ -22,42 +18,29 @@ export default function PublicWebsite() {
     cases: 0
   });
 
-  const [ongoingProjects, setOngoingProjects] = useState<any[]>([]);
   const [publishedArticles, setPublishedArticles] = useState<any[]>([]);
-  const [allEvents, setAllEvents] = useState<any[]>([]);
-  const [branches, setBranches] = useState<any[]>([]);
-  const [mounted, setMounted] = useState(false);
-
-  const [eventFilterBranch, setEventFilterBranch] = useState<string | null>('all')
   const aboutSectionRef = useRef<HTMLDivElement>(null)
 
   const [showAddMemberModal, setShowAddMemberModal] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [showFileModal, setShowFileModal] = useState(false)
   const [selectedArticle, setSelectedArticle] = useState<any>(null)
-  const [selectedEvent, setSelectedEvent] = useState<any>(null)
 
   // Load data from localStorage ONLY on client after mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    setMounted(true);
-
     const members = JSON.parse(localStorage.getItem('members') || '[]');
     const projects = JSON.parse(localStorage.getItem('projects') || '[]');
     const cases = JSON.parse(localStorage.getItem('helpdesk_cases') || '[]');
     const articles = JSON.parse(localStorage.getItem('articles') || '[]');
-    const events = JSON.parse(localStorage.getItem('events') || '[]');
     const branchesData = JSON.parse(localStorage.getItem('branches') || '[]');
 
     const ongoing = projects.filter((p: any) => p.status === 'ongoing' || p.status === 'in_progress');
 
     const published = articles.filter((a: any) => a.published === true);
 
-    setOngoingProjects(ongoing);
     setPublishedArticles(published);
-    setAllEvents(events);
-    setBranches(branchesData);
 
     setStatistics({
       members: members.length,
@@ -66,14 +49,6 @@ export default function PublicWebsite() {
       cases: cases.filter((c: any) => c.status !== 'completed' && c.status !== 'resolved').length
     });
   }, []);
-
-  const filteredEvents = allEvents
-    .filter(event =>
-      eventFilterBranch === 'all' || event.branchId === eventFilterBranch
-    )
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()); // Upcoming first
-
-  // console.log(filteredEvents[0])
 
   const handleFileCase = async (caseData: Partial<HelpDeskCase>) => {
     setIsLoading(true)
@@ -105,366 +80,123 @@ export default function PublicWebsite() {
     }
   }
 
-  const tabs = ['home', 'events', 'articles', 'projects']
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-      {/* Header/Navigation */}
-      <nav className="bg-white dark:bg-slate-900 border-b sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex flex-wrap items-center text-2xl font-bold text-primary gap-4">
-              <img src={Logo.src} alt="Tucoswa" className='h-10 w-10 object-fit-stretch border-radius-10' />
-              Tucoswa Union
-            </div>
-            <div className="flex gap-1 overflow-x-auto">
-              {tabs.map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition ${activeTab === tab
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-accent'
-                    }`}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </button>
-              ))}
-            </div>
+    <div className="min-h-screen overflow-hidden bg-[#f8fafb] text-slate-900">
+      <div className="bg-[#173f5f] px-4 py-2 text-center text-xs font-semibold tracking-[0.18em] text-white/90">
+        TUCOSWA · TRADE UNION CONGRESS OF ESWATINI
+      </div>
 
-            <Button type='button' onClick={() => window.location.href = '/login'}>Login</Button>
+      <nav className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <a href="#top" className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e96b3b] text-xl font-black text-white shadow-lg shadow-orange-900/10">T</span>
+            <span>
+              <span className="block text-lg font-black tracking-tight text-[#173f5f]">TUCOSWA</span>
+              <span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">One voice. One movement.</span>
+            </span>
+          </a>
+          <div className="hidden items-center gap-8 text-sm font-semibold text-slate-600 md:flex">
+            <a href="#about" className="transition hover:text-[#e96b3b]">Our movement</a>
+            <a href="#priorities" className="transition hover:text-[#e96b3b]">Priorities</a>
+            <a href="#updates" className="transition hover:text-[#e96b3b]">Updates</a>
+            <a href="#contact" className="transition hover:text-[#e96b3b]">Contact</a>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="ghost" className="hidden text-[#173f5f] sm:inline-flex" onClick={() => window.location.href = '/login'}>Member login</Button>
+            <Button type="button" className="bg-[#e96b3b] text-white shadow-lg shadow-orange-900/15 hover:bg-[#d9582b]" onClick={() => setShowAddMemberModal(true)}>Join the movement</Button>
           </div>
         </div>
       </nav>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        {/* HOME TAB */}
-        {activeTab === 'home' && (
-          <div className="space-y-12">
-            {/* Hero Section */}
-            <div className="bg-gradient-to-r from-primary/20 to-accent/20 rounded-2xl p-12 text-center">
-              <h1 className="text-5xl font-bold mb-4">TUCOSWA</h1>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-                Empowering workers through solidarity, advocacy, and collective action for better working conditions and social justice.
-              </p>
-              <div className="flex gap-4 justify-center">
-                <Button type='button' onClick={() => setShowAddMemberModal(true)} size="lg" className="gap-2">
-                  <Heart className="w-4 h-4" />
-                  Join Us
-                </Button>
-                <Button size="lg" variant="outline" onClick={() => aboutSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}>Learn More</Button>
-
-                <button onClick={() => setShowFileModal(true)} className='bg-muted text-muted-foreground hover:bg-accent px-4 py-2 rounded-md font-medium text-sm whitespace-nowrap transition'>Grievances</button>
+      <main id="top">
+        <section className="relative isolate overflow-hidden bg-[#173f5f] text-white">
+          <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-[#e96b3b]/30 blur-3xl animate-pulse" />
+          <div className="absolute -bottom-32 left-1/3 h-96 w-96 rounded-full bg-[#2a9d8f]/20 blur-3xl" />
+          <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-28">
+            <div className="relative z-10">
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-white/80">
+                <span className="h-2 w-2 rounded-full bg-[#f4c95d]" /> A united labour centre for Eswatini
+              </div>
+              <h1 className="max-w-3xl text-5xl font-black leading-[0.98] tracking-[-0.04em] sm:text-6xl lg:text-7xl">Work has dignity.<br /><span className="text-[#f4c95d]">Workers have power.</span></h1>
+              <p className="mt-7 max-w-xl text-lg leading-8 text-slate-200 sm:text-xl">TUCOSWA brings workers and unions together to advance social justice, democratic participation, decent work, and a stronger voice for working families across Eswatini.</p>
+              <div className="mt-9 flex flex-wrap gap-3">
+                <Button size="lg" className="gap-2 bg-[#e96b3b] px-6 text-white hover:bg-[#d9582b]" onClick={() => setShowAddMemberModal(true)}><UsersRound className="h-4 w-4" /> Become a member</Button>
+                <Button size="lg" variant="outline" className="border-white/30 bg-white/10 px-6 text-white hover:bg-white/20 hover:text-white" onClick={() => aboutSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}>Discover our work <ArrowRight className="h-4 w-4" /></Button>
+              </div>
+              <div className="mt-12 grid max-w-lg grid-cols-3 gap-5 border-t border-white/15 pt-6">
+                <div><div className="text-3xl font-black text-[#f4c95d]">{statistics.members || '—'}</div><div className="mt-1 text-xs uppercase tracking-wider text-slate-300">Members</div></div>
+                <div><div className="text-3xl font-black text-[#f4c95d]">{statistics.branches || '3'}</div><div className="mt-1 text-xs uppercase tracking-wider text-slate-300">Regions</div></div>
+                <div><div className="text-3xl font-black text-[#f4c95d]">{statistics.projects || '—'}</div><div className="mt-1 text-xs uppercase tracking-wider text-slate-300">Active efforts</div></div>
               </div>
             </div>
-
-            {/* Statistics */}
-            <div className="grid md:grid-cols-3 gap-4">
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <div className="text-3xl font-bold text-primary">{statistics.members}</div>
-                  <p className="text-sm text-muted-foreground">Active Members</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <div className="text-3xl font-bold text-primary">{statistics.branches}</div>
-                  <p className="text-sm text-muted-foreground">Branches</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <div className="text-3xl font-bold text-primary">{statistics.projects}</div>
-                  <p className="text-sm text-muted-foreground">Active Projects</p>
-                </CardContent>
-              </Card>
+            <div className="relative">
+              <div className="absolute -inset-3 rounded-[2rem] border border-[#f4c95d]/30 rotate-3" />
+              <div className="relative overflow-hidden rounded-[2rem] border-8 border-white/10 bg-slate-800 shadow-2xl shadow-black/30 transition duration-700 hover:-translate-y-2 hover:rotate-1">
+                <img src="/tucoswa-solidarity.jpg" alt="Workers standing together in solidarity in Eswatini" className="aspect-[4/3] w-full object-cover" />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0f2d46] via-[#0f2d46]/70 to-transparent p-6 pt-20">
+                  <p className="max-w-sm text-sm font-semibold leading-6 text-white">“In unity we are guaranteed strength.”</p>
+                  <p className="mt-2 text-xs font-bold uppercase tracking-widest text-[#f4c95d]">The TUCOSWA spirit</p>
+                </div>
+              </div>
+              <div className="absolute -bottom-5 -left-5 hidden rounded-2xl bg-[#f4c95d] px-5 py-4 text-[#173f5f] shadow-xl sm:block">
+                <div className="text-2xl font-black">01</div><div className="text-[10px] font-black uppercase tracking-widest">One federation</div>
+              </div>
             </div>
+          </div>
+        </section>
 
-            {/* Values Section */}
-            <div className="grid md:grid-cols-3 gap-6">
+        <section id="about" ref={aboutSectionRef} className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+          <div className="grid gap-12 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-[#e96b3b]">Our movement</p>
+              <h2 className="mt-4 text-4xl font-black leading-tight tracking-tight text-[#173f5f] sm:text-5xl">Built from unity. Focused on justice.</h2>
+              <p className="mt-6 text-lg leading-8 text-slate-600">Formed in 2012 through the coming together of major union centres, TUCOSWA exists to strengthen workers’ collective voice and defend the rights of every worker in Eswatini.</p>
+              <p className="mt-5 text-base leading-7 text-slate-500">Our work connects workplace organising with the wider pursuit of dignity, equality, democracy, and accountable institutions.</p>
+              <Button variant="outline" className="mt-7 gap-2 border-[#173f5f]/20 text-[#173f5f] hover:bg-[#173f5f] hover:text-white" onClick={() => setShowFileModal(true)}>Raise a workplace concern <ArrowRight className="h-4 w-4" /></Button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
               {[
-                { title: 'Solidarity', desc: 'Standing together for collective strength' },
-                { title: 'Justice', desc: 'Fighting for fair treatment and rights' },
-                { title: 'Advocacy', desc: 'Giving voice to worker concerns' }
-              ].map((item) => (
-                <Card key={item.title}>
-                  <CardHeader>
-                    <CardTitle>{item.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">{item.desc}</p>
-                  </CardContent>
-                </Card>
+                { icon: Handshake, title: 'Unity across unions', copy: 'A shared platform that brings workers together across sectors and regions.' },
+                { icon: Scale, title: 'Social justice', copy: 'Advocating for fair treatment, decent work, and the dignity of working families.' },
+                { icon: Megaphone, title: 'A stronger voice', copy: 'Turning workers’ lived experience into collective advocacy and public action.' },
+                { icon: ShieldCheck, title: 'Rights at work', copy: 'Standing for freedom of association, organising, and safe, fair workplaces.' }
+              ].map(({ icon: Icon, title, copy }, index) => (
+                <div key={title} className={`group rounded-3xl border border-slate-200 bg-white p-7 shadow-sm transition duration-500 hover:-translate-y-1 hover:border-[#e96b3b]/40 hover:shadow-xl ${index === 1 ? 'sm:translate-y-8' : ''}`}>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#173f5f]/8 text-[#173f5f] transition group-hover:bg-[#e96b3b] group-hover:text-white"><Icon className="h-5 w-5" /></div>
+                  <h3 className="mt-6 text-xl font-black text-[#173f5f]">{title}</h3>
+                  <p className="mt-3 leading-7 text-slate-500">{copy}</p>
+                </div>
               ))}
             </div>
           </div>
-        )}
+        </section>
 
-        {/* EVENTS TAB */}
-        {activeTab === 'events' && (
-          <div className="space-y-10">
-            <div className="flex items-end justify-between">
-              <div>
-                <h2 className="text-3xl font-bold">Upcoming Events</h2>
-                <p className="text-muted-foreground mt-1">Stay updated with our union activities and gatherings</p>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                {allEvents.length} event{allEvents.length !== 1 ? 's' : ''}
-              </div>
-            </div>
-
-            {/* Branch Filter */}
-            <Card className="bg-muted/30 border-muted">
-              <CardContent className="pt-6">
-                <div className="flex flex-wrap items-center gap-4">
-                  <Label className="whitespace-nowrap">Filter by Branch:</Label>
-                  <Select value={eventFilterBranch || 'all'} onValueChange={setEventFilterBranch}>
-                    <SelectTrigger className="w-72">
-                      <SelectValue placeholder="All Branches" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Branches</SelectItem>
-                      {branches.map(branch => (
-                        <SelectItem key={branch.id} value={branch.id}>
-                          {branch.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+        <section id="priorities" className="bg-[#eef3f5] px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+          <div className="mx-auto max-w-7xl">
+            <div className="max-w-2xl"><p className="text-xs font-black uppercase tracking-[0.2em] text-[#e96b3b]">What we stand for</p><h2 className="mt-4 text-4xl font-black tracking-tight text-[#173f5f] sm:text-5xl">A movement that organises, educates, and acts.</h2></div>
+            <div className="mt-12 grid gap-6 md:grid-cols-3">
+              {[{ number: '01', title: 'Organise', copy: 'Build strong, democratic structures where members can participate and lead.' }, { number: '02', title: 'Educate', copy: 'Equip shop stewards and workers with the knowledge to defend rights and shape policy.' }, { number: '03', title: 'Act', copy: 'Advocate for reforms that protect freedom of association, equality, and decent work.' }].map(item => (
+                <div key={item.number} className="relative overflow-hidden rounded-3xl bg-[#173f5f] p-8 text-white shadow-xl transition duration-500 hover:-translate-y-2">
+                  <span className="absolute -right-3 -top-8 text-[9rem] font-black leading-none text-white/5">{item.number}</span><div className="relative"><span className="text-sm font-black text-[#f4c95d]">{item.number}</span><h3 className="mt-10 text-3xl font-black">{item.title}</h3><p className="mt-4 leading-7 text-slate-300">{item.copy}</p></div>
                 </div>
-              </CardContent>
-            </Card>
-
-            {filteredEvents.length === 0 ? (
-              <div className="text-center py-16 bg-muted/30 rounded-xl text-muted-foreground">
-                <p className="text-lg">No events found.</p>
-                <p className="mt-2">Try changing the branch filter.</p>
-              </div>
-            ) : (
-              <>
-                {/* Featured Event */}
-                {filteredEvents[0] && (
-                  <FeaturedEvent event={filteredEvents[0]} onReadMore={setSelectedEvent} />
-                )}
-
-                {/* Other Events Grid */}
-                {filteredEvents.length > 1 && (
-                  <div>
-                    <h3 className="text-xl font-semibold mb-6">More Events</h3>
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {filteredEvents.slice(1).map(event => (
-                        <EventCard
-                          key={event.id}
-                          event={event}
-                          onReadMore={setSelectedEvent}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* HELPDESK TAB */}
-        {activeTab === 'helpdesk' && (
-          <div className="space-y-6">
-            <h2 className="text-3xl font-bold">Grievances</h2>
-            <p className="text-muted-foreground">File your case and make your voice heard</p>
-            <div className="grid gap-4">
-              {/* form filling - with input and preview for supporting images and docs */}
+              ))}
+            </div>
+            <div className="mt-8 grid gap-6 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-[0.9fr_1.1fr] md:p-8">
+              <img src="/eswatini-workers.jpg" alt="Workers in a textile workplace in Eswatini" className="h-full min-h-64 w-full rounded-2xl object-cover" />
+              <div className="flex flex-col justify-center p-2 md:p-6"><p className="text-xs font-black uppercase tracking-[0.2em] text-[#e96b3b]">Democracy is workplace work</p><h3 className="mt-4 text-3xl font-black leading-tight text-[#173f5f]">Accountability grows when workers have a seat at the table.</h3><p className="mt-5 leading-7 text-slate-600">TUCOSWA’s organising and education work is designed to bring decision-making closer to members — strengthening local shop stewards councils, participation, gender equality, and accountable union structures.</p><div className="mt-7 flex items-center gap-3 text-sm font-bold text-[#173f5f]"><BookOpen className="h-5 w-5 text-[#e96b3b]" /> Education, participation, action</div></div>
             </div>
           </div>
-        )}
+        </section>
 
-        {/* PROJECTS TAB */}
-        {activeTab === 'projects' && (
-          <div className="space-y-6">
-            <h2 className="text-3xl font-bold">Ongoing Projects</h2>
-            {ongoingProjects.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">No ongoing projects at the moment</p>
-            ) : (
-              <div className="grid md:grid-cols-2 gap-6">
-                {ongoingProjects.map((project) => (
-                  <Card key={project.id} className="hover:shadow-lg transition overflow-hidden">
-                    <CardHeader className="pb-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <CardTitle className="text-xl">{project.title}</CardTitle>
-                          <CardDescription className="mt-2">{project.description}</CardDescription>
-                        </div>
-                        <div className="flex-shrink-0">
-                          <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                            {project.status}
-                          </span>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {project.budget && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Budget:</span>
-                            <span className="font-semibold">E{project.budget?.toLocaleString()}</span>
-                          </div>
-                        )}
-                        {project.startDate && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Start Date:</span>
-                            <span className="font-semibold">{new Date(project.startDate).toLocaleDateString()}</span>
-                          </div>
-                        )}
-                        {project.phases && project.phases.length > 0 && (
-                          <div>
-                            <p className="text-sm font-medium mb-2">Phases ({project.phases.length}):</p>
-                            <div className="space-y-2">
-                              {project.phases.map((phase: any, idx: number) => (
-                                <div key={idx} className="flex items-center gap-2 text-sm">
-                                  <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
-                                  <span>{typeof phase === 'string' ? phase : phase.name || phase}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        <section id="updates" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-[#e96b3b]">Stay connected</p><h2 className="mt-4 text-4xl font-black tracking-tight text-[#173f5f]">From the movement</h2></div><p className="max-w-sm text-sm leading-6 text-slate-500">Follow union news, events, and member-led action from across Eswatini.</p></div>
+          {publishedArticles.length > 0 ? <div className="mt-10 grid gap-6 md:grid-cols-3">{publishedArticles.slice(0, 3).map(article => <ArticleCard key={article.id} article={article} onReadMore={setSelectedArticle} />)}</div> : <div className="mt-10 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center"><Sparkles className="mx-auto h-7 w-7 text-[#e96b3b]" /><h3 className="mt-4 text-xl font-black text-[#173f5f]">News and resources are on the way</h3><p className="mx-auto mt-2 max-w-md text-slate-500">This space will carry the latest updates, statements, and resources from the movement.</p></div>}
+        </section>
 
-        {/* ARTICLES TAB */}
-        {activeTab === 'articles' && (
-          <div className="space-y-10">
-            <div className="flex items-end justify-between">
-              <div>
-                <h2 className="text-3xl font-bold">Articles & Resources</h2>
-                <p className="text-muted-foreground mt-1">Latest updates, news, and important resources from TUCOSWA</p>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                {publishedArticles.length} article{publishedArticles.length !== 1 ? 's' : ''}
-              </div>
-            </div>
-
-            {publishedArticles.length === 0 ? (
-              <div className="text-muted-foreground text-center py-16 bg-muted/30 rounded-xl">
-                <p className="text-lg">No articles published yet.</p>
-                <p className="mt-2">Check back soon for important updates and resources.</p>
-              </div>
-            ) : (
-              <>
-                {/* Featured Article (Largest & Most Prominent) */}
-                {publishedArticles[0] && (
-                  <FeaturedArticle article={publishedArticles[0]} onReadMore={setSelectedArticle} />
-                )}
-
-                {/* All Articles Grid */}
-                <div>
-                  <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                    More Articles
-                  </h3>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {publishedArticles.slice(1).map(article => (
-                      <ArticleCard
-                        key={article.id}
-                        article={article}
-                        onReadMore={setSelectedArticle}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* About Us Section */}
-      <div ref={aboutSectionRef} className="max-w-7xl mx-auto px-4 py-16 space-y-8">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl font-bold mb-4">About TUCOSWA</h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Learn about our mission, values, and commitment to workers' rights
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-8">
-          <Card className="border-none shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-2xl">Our Mission</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-muted-foreground">
-              <p>
-                TUCOSWA is dedicated to empowering workers through collective action, solidarity, and advocacy. We stand united in the fight for fair wages, safe working conditions, and the protection of fundamental labor rights.
-              </p>
-              <p>
-                Our mission extends beyond the workplace – we are committed to building stronger communities where workers have a voice and dignity is assured.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-2xl">Our Vision</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-muted-foreground">
-              <p>
-                We envision a future where all workers enjoy fair treatment, equitable compensation, and a safe environment. A future where collective strength ensures justice and dignity for everyone.
-              </p>
-              <p>
-                Through solidarity and unity, we strive to create lasting social change that benefits workers and their families across all sectors and industries.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="border-none shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-2xl">Our Values</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="p-4 bg-muted rounded-lg">
-                <h4 className="font-bold mb-2">Solidarity</h4>
-                <p className="text-sm text-muted-foreground">We stand together, united in purpose and action, supporting one another in our struggle for workers' rights.</p>
-              </div>
-              <div className="p-4 bg-muted rounded-lg">
-                <h4 className="font-bold mb-2">Justice</h4>
-                <p className="text-sm text-muted-foreground">We fight tirelessly for fair treatment, equitable wages, and the protection of fundamental human and labor rights.</p>
-              </div>
-              <div className="p-4 bg-muted rounded-lg">
-                <h4 className="font-bold mb-2">Advocacy</h4>
-                <p className="text-sm text-muted-foreground">We amplify the voices of workers, ensuring their concerns are heard and their rights are respected at all levels.</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="bg-muted rounded-lg p-8">
-          <h3 className="text-2xl font-bold mb-4">Get in Touch</h3>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-semibold mb-2">Contact Information</h4>
-              <p className="text-sm text-muted-foreground mb-1">Email: info@tucoswa.org</p>
-              <p className="text-sm text-muted-foreground mb-1">Phone: +1 (555) 123-4567</p>
-              <p className="text-sm text-muted-foreground">Website: www.tucoswa.com</p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-2">Office Hours</h4>
-              <p className="text-sm text-muted-foreground mb-1">Monday - Friday: 9:00 AM - 5:00 PM</p>
-              <p className="text-sm text-muted-foreground mb-1">Saturday: 10:00 AM - 2:00 PM</p>
-              <p className="text-sm text-muted-foreground">Sunday: Closed</p>
-            </div>
-          </div>
-        </div>
-      </div>
+        <section id="contact" className="bg-[#e96b3b] px-4 py-16 text-white sm:px-6 lg:px-8">
+          <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 md:flex-row md:items-center"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-white/75">Your voice matters</p><h2 className="mt-3 max-w-2xl text-4xl font-black tracking-tight sm:text-5xl">Stand with workers. Strengthen the movement.</h2></div><div className="flex flex-wrap gap-3"><Button size="lg" className="bg-[#173f5f] px-6 text-white hover:bg-[#0e2c43]" onClick={() => setShowAddMemberModal(true)}>Join TUCOSWA <ArrowRight className="ml-2 h-4 w-4" /></Button><Button size="lg" variant="outline" className="border-white/50 bg-transparent text-white hover:bg-white hover:text-[#e96b3b]" onClick={() => setShowFileModal(true)}>File a grievance</Button></div></div>
+        </section>
+      </main>
 
       {/* add member modal */}
       <AddMemberModal
@@ -504,17 +236,11 @@ export default function PublicWebsite() {
         />
       )}
 
-      {selectedEvent && (
-        <EventModal
-          event={selectedEvent}
-          onClose={() => setSelectedEvent(null)}
-        />
-      )}
-
       {/* Footer */}
       <footer className="bg-muted mt-12 py-8 border-t">
         <div className="max-w-7xl mx-auto px-4 text-center text-muted-foreground">
-          <p>&copy; 2026 TUCOSWA. All rights reserved.</p>
+          <p className="font-semibold text-[#173f5f]">TUCOSWA · Trade Union Congress of Eswatini</p>
+          <p className="mt-2 text-xs">A public-facing concept informed by reporting from ITUC, ITUC-Africa, and TUC Aid. Imagery: ITUC-Africa and United Nations Eswatini.</p>
         </div>
       </footer>
     </div>
