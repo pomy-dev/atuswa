@@ -59,7 +59,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
               />
-              <p className="text-xs text-muted-foreground">Demo: sg@tucoswa.org</p>
+              {/* <p className="text-xs text-muted-foreground">Demo: sg@tucoswa.org</p> */}
             </div>
 
             <div className="space-y-2">
@@ -72,7 +72,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
               />
-              <p className="text-xs text-muted-foreground">Demo: demo123</p>
+              {/* <p className="text-xs text-muted-foreground">Demo: demo123</p> */}
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
@@ -80,7 +80,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 p-3 bg-accent/10 rounded-lg">
+          {/* <div className="mt-6 p-3 bg-accent/10 rounded-lg">
             <p className="text-xs font-semibold mb-2">Demo Accounts:</p>
             <ul className="text-xs space-y-1 text-muted-foreground">
               <li>• Secretary General: sg@tucoswa.org</li>
@@ -90,7 +90,7 @@ export default function LoginPage() {
               <li>• Events Manager: events@tucoswa.org</li>
             </ul>
             <p className="text-xs mt-2 font-semibold">Password: demo123</p>
-          </div>
+          </div> */}
         </CardContent>
       </Card>
     </div>
