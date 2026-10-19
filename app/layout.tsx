@@ -4,7 +4,6 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/lib/auth-context'
-import { ThemeProvider } from '@/lib/theme-context'
 import { useEffect } from 'react'
 import { initializeDummyData } from '@/lib/dummy-data'
 
@@ -27,12 +26,10 @@ export default function RootLayout({
         <meta name="description" content="Union Management System" />
       </head>
       <body className="antialiased bg-background">
-        <ThemeProvider>
-          <AuthProvider>
-            {children}
-            {process.env.NODE_ENV === 'production' && <Analytics />}
-          </AuthProvider>
-        </ThemeProvider>
+        <AuthProvider>
+          {children}
+          {process.env.NODE_ENV === 'production' && <Analytics />}
+        </AuthProvider>
       </body>
     </html>
   )

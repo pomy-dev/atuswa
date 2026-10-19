@@ -4,7 +4,6 @@ import { useAuth } from '@/lib/auth-context'
 import { Bell, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { ThemeToggle } from './theme-toggle'
 
 export function Header() {
   const { user } = useAuth()
@@ -22,7 +21,6 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-4">
-        <ThemeToggle />
         <Button variant="ghost" size="icon">
           <Bell className="w-5 h-5" />
         </Button>

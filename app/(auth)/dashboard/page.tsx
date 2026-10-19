@@ -119,15 +119,8 @@ export default function DashboardPage() {
   }, [])
 
   const generateUniqueColors = (count: number): string[] => {
-    const colors: string[] = [];
-
-    for (let i = 0; i < count; i++) {
-      // Generate nice, distinguishable colors using HSL
-      const hue = (i * 137.5) % 360; // Golden angle for good distribution
-      colors.push(`hsl(${hue}, 85%, 58%)`);
-    }
-
-    return colors;
+    const palette = ['#315A85', '#4F8A8B', '#80658F', '#C89C45', '#BF6B61'];
+    return Array.from({ length: count }, (_, index) => palette[index % palette.length]);
   };
 
   const chartData = useMemo(() => {
@@ -274,8 +267,8 @@ export default function DashboardPage() {
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="income" fill="#476bf9ff" name="Income" />
-                    <Bar dataKey="expense" fill="#f84c57ff" name="Expense" />
+                    <Bar dataKey="income" fill="#315A85" name="Income" />
+                    <Bar dataKey="expense" fill="#BF6B61" name="Expense" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -296,10 +289,10 @@ export default function DashboardPage() {
                       labelLine={false}
                       label={({ name, value }) => `${name}: ${value}`}
                       outerRadius={80}
-                      fill="#f6be17ff"
+                      fill="#4F8A8B"
                       dataKey="value"
                     >
-                      {branchData.map((entry, index) => (
+                      {branchData.map((_entry: { name: string; value: number }, index: number) => (
                         <Cell key={`cell-${index}`} fill={pieColors[index]} />
                       ))}
                     </Pie>

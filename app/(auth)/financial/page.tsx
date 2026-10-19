@@ -161,7 +161,7 @@ export default function FinancialPage() {
                 <XAxis dataKey="name" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="amount" fill="#5837a6ff" />
+                <Bar dataKey="amount" fill="#80658F" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
