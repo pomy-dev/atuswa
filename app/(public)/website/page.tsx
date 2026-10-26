@@ -132,7 +132,7 @@ export default function PublicWebsite() {
             <div className="relative">
               <div className="absolute -inset-3 rounded-[2rem] border border-[#f4c95d]/30 rotate-3" />
               <div className="relative overflow-hidden rounded-[2rem] border-8 border-white/10 bg-slate-800 shadow-2xl shadow-black/30 transition duration-700 hover:-translate-y-2 hover:rotate-1">
-                <img src="/tucoswa-solidarity.jpg" alt="Workers standing together in solidarity in Eswatini" className="aspect-[4/3] w-full object-cover" />
+                <img src="/tucoswa-team.jpeg" alt="Workers standing together in solidarity in Eswatini" className="aspect-[4/3] w-full object-cover" />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0f2d46] via-[#0f2d46]/70 to-transparent p-6 pt-20">
                   <p className="max-w-sm text-sm font-semibold leading-6 text-white">“In unity we are guaranteed strength.”</p>
                   <p className="mt-2 text-xs font-bold uppercase tracking-widest text-[#f4c95d]">The TUCOSWA spirit</p>
@@ -188,15 +188,32 @@ export default function PublicWebsite() {
               ))}
             </div>
             <div className="mt-8 grid gap-6 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-[0.9fr_1.1fr] md:p-8">
-              <img src="/eswatini-workers.jpg" alt="Workers in a textile workplace in Eswatini" className="h-full min-h-64 w-full rounded-2xl object-cover" />
+              <img src="/tucoswa-march.jpeg" alt="Workers in a textile workplace in Eswatini" className="h-full min-h-64 w-full rounded-2xl object-cover" />
               <div className="flex flex-col justify-center p-2 md:p-6"><p className="text-xs font-black uppercase tracking-[0.2em] text-[#e96b3b]">Democracy is workplace work</p><h3 className="mt-4 text-3xl font-black leading-tight text-[#173f5f]">Accountability grows when workers have a seat at the table.</h3><p className="mt-5 leading-7 text-slate-600">TUCOSWA’s organising and education work is designed to bring decision-making closer to members — strengthening local shop stewards councils, participation, gender equality, and accountable union structures.</p><div className="mt-7 flex items-center gap-3 text-sm font-bold text-[#173f5f]"><BookOpen className="h-5 w-5 text-[#e96b3b]" /> Education, participation, action</div></div>
             </div>
           </div>
         </section>
 
         <section id="updates" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
-          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-[#e96b3b]">Stay connected</p><h2 className="mt-4 text-4xl font-black tracking-tight text-[#173f5f]">From the movement</h2></div><p className="max-w-sm text-sm leading-6 text-slate-500">Follow union news, events, and member-led action from across Eswatini.</p></div>
-          {publishedArticles.length > 0 ? <div className="mt-10 grid gap-6 md:grid-cols-3">{publishedArticles.slice(0, 3).map(article => <ArticleCard key={article.id} article={article} onReadMore={setSelectedArticle} />)}</div> : <div className="mt-10 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center"><Sparkles className="mx-auto h-7 w-7 text-[#e96b3b]" /><h3 className="mt-4 text-xl font-black text-[#173f5f]">News and resources are on the way</h3><p className="mx-auto mt-2 max-w-md text-slate-500">This space will carry the latest updates, statements, and resources from the movement.</p></div>}
+          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-[#e96b3b]">Stay connected</p>
+              <h2 className="mt-4 text-4xl font-black tracking-tight text-[#173f5f]">From the movement</h2>
+            </div>
+            <p className="max-w-sm text-sm leading-6 text-slate-500">Follow union news, events, and member-led action from across Swaziland.</p>
+          </div>
+          {publishedArticles.length > 0
+            ? <div className="mt-10 grid gap-6 md:grid-cols-3">
+              {publishedArticles.slice(0, 3).map(article =>
+                <ArticleCard key={article.id} article={article} onReadMore={setSelectedArticle} />
+              )}
+            </div>
+            : <div className="mt-10 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+              <Sparkles className="mx-auto h-7 w-7 text-[#e96b3b]" />
+              <h3 className="mt-4 text-xl font-black text-[#173f5f]">News and resources are on the way</h3>
+              <p className="mx-auto mt-2 max-w-md text-slate-500">This space will carry the latest updates, statements, and resources from the movement.</p>
+            </div>
+          }
         </section>
 
         <section
@@ -206,7 +223,16 @@ export default function PublicWebsite() {
         />
 
         <section id="contact" className="bg-[#e96b3b] px-4 py-16 text-white sm:px-6 lg:px-8">
-          <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 md:flex-row md:items-center"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-white/75">Your voice matters</p><h2 className="mt-3 max-w-2xl text-4xl font-black tracking-tight sm:text-5xl">Stand with workers. Strengthen the movement.</h2></div><div className="flex flex-wrap gap-3"><Button size="lg" className="bg-[#173f5f] px-6 text-white hover:bg-[#0e2c43]" onClick={() => setShowAddMemberModal(true)}>Join TUCOSWA <ArrowRight className="ml-2 h-4 w-4" /></Button><Button size="lg" variant="outline" className="border-white/50 bg-transparent text-white hover:bg-white hover:text-[#e96b3b]" onClick={() => setShowFileModal(true)}>File a grievance</Button></div></div>
+          <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 md:flex-row md:items-center">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-white/75">Your voice matters</p>
+              <h2 className="mt-3 max-w-2xl text-4xl font-black tracking-tight sm:text-5xl">Stand with workers. Strengthen the movement.</h2>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button size="lg" className="bg-[#173f5f] px-6 text-white hover:bg-[#0e2c43]" onClick={() => setShowAddMemberModal(true)}>Join TUCOSWA <ArrowRight className="ml-2 h-4 w-4" /></Button>
+              <Button size="lg" variant="outline" className="border-white/50 bg-transparent text-white hover:bg-white hover:text-[#e96b3b]" onClick={() => setShowFileModal(true)}>File a grievance</Button>
+            </div>
+          </div>
         </section>
       </main>
 
