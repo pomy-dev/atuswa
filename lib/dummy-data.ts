@@ -3,6 +3,9 @@ import {
   UserRole,
   Branch,
   Member,
+  Affiliate,
+  AffiliateStatus,
+  FinancialStanding,
   FinancialRecord,
   Project,
   ProjectStatus,
@@ -139,6 +142,35 @@ export const dummyMembers: Member[] = Array.from({ length: 45 }, (_, i) => ({
   gender: i % 2 === 0 ? 'Male' : 'Female',
   joinDate: new Date(2023, Math.floor(i / 5), (i % 28) + 1)
 }))
+
+export const dummyAffiliates: Affiliate[] = [
+  {
+    id: 'affiliate_1', affiliateId: 'TUC-AFF-001', officialName: 'Swaziland National Association of Teachers', acronym: 'SNAT',
+    registrationNumber: 'REG-1974-018', affiliationDate: '2012-01-15', foundingDate: '1974-03-12',
+    physicalAddress: 'SNAT House, Mbabane', postalAddress: 'P.O. Box 1020, Mbabane', phoneNumbers: ['+268 2404 1234'], email: 'info@snat.org.sz', website: 'https://snat.org.sz', socialMedia: '@SNATEswatini',
+    correspondenceContact: { name: 'Lindiwe Dlamini', email: 'secretary@snat.org.sz', phone: '+268 7600 1100' },
+    leadership: [
+      { position: 'President', name: 'Thulani Maseko', termOfOffice: '2023–2026' },
+      { position: 'Secretary General', name: 'Lindiwe Dlamini', email: 'secretary@snat.org.sz', termOfOffice: '2023–2026' },
+      { position: 'Treasurer', name: 'Bongani Hlophe', termOfOffice: '2023–2026' }
+    ],
+    lastCongressDate: '2023-08-18', constitutionVersion: '2023 revision', executiveCommitteeSize: 15,
+    declaredMembership: 8200, paidUpMembership: 7600, genderBreakdown: { female: 4800, male: 3250, other: 150 }, ageGroups: '18–30: 1,250; 31–50: 5,200; 51+: 1,750',
+    sectors: ['Education', 'Public service'], regions: ['Hhohho', 'Manzini', 'Shiselweni', 'Lubombo'], shopStewards: 124,
+    duesRate: 'E35 per month', paymentHistory: 'Up to date through September 2026', financialStanding: 'Good standing' as FinancialStanding, bankDetails: 'On file with national office',
+    status: 'Active' as AffiliateStatus, statusHistory: [{ status: 'Active' as AffiliateStatus, reason: 'Affiliation verified', changedAt: new Date('2012-01-15'), changedBy: 'system' }],
+    documents: [{ id: 'doc_1', name: 'SNAT Constitution 2023.pdf', category: 'Constitution', version: '2023', uploadedAt: new Date('2023-09-01') }], notes: 'Largest education affiliate.', active: true, createdAt: new Date('2012-01-15'), updatedAt: new Date('2026-09-30')
+  },
+  {
+    id: 'affiliate_2', affiliateId: 'TUC-AFF-002', officialName: 'Swaziland Transport, Communication and Allied Workers Union', acronym: 'SWATCAWU',
+    registrationNumber: 'REG-1998-044', affiliationDate: '2012-01-15', foundingDate: '1998-06-20', physicalAddress: 'Manzini Industrial Area', postalAddress: 'P.O. Box 334, Manzini', phoneNumbers: ['+268 2505 2211'], email: 'office@swatcawu.org.sz', website: '', socialMedia: '@SWATCAWU',
+    correspondenceContact: { name: 'Mduduzi Gina', email: 'office@swatcawu.org.sz', phone: '+268 7800 2244' }, leadership: [{ position: 'President', name: 'Sibusiso Shongwe', termOfOffice: '2024–2027' }, { position: 'Secretary General', name: 'Mduduzi Gina', termOfOffice: '2024–2027' }],
+    lastCongressDate: '2024-05-10', constitutionVersion: '2024 revision', executiveCommitteeSize: 9, declaredMembership: 3100, paidUpMembership: 2400, genderBreakdown: { female: 620, male: 2400, other: 80 }, ageGroups: '18–30: 410; 31–50: 1,980; 51+: 710', sectors: ['Transport', 'Communications'], regions: ['Manzini', 'Hhohho'], shopStewards: 66, duesRate: 'E50 per month', paymentHistory: 'Two months outstanding', financialStanding: 'Arrears' as FinancialStanding, bankDetails: 'Pending verification', status: 'Provisional' as AffiliateStatus, statusHistory: [{ status: 'Provisional' as AffiliateStatus, reason: 'Awaiting updated financial statements', changedAt: new Date('2026-04-01'), changedBy: 'user_1' }], documents: [], notes: 'Follow up on audited statements and dues reconciliation.', active: true, createdAt: new Date('2012-01-15'), updatedAt: new Date('2026-10-01')
+  },
+  {
+    id: 'affiliate_3', affiliateId: 'TUC-AFF-003', officialName: 'Eswatini Textile and Garment Workers Union', acronym: 'ETGWU', registrationNumber: 'REG-2006-087', affiliationDate: '2016-03-22', foundingDate: '2006-11-04', physicalAddress: 'Matsapha Textile Park', postalAddress: 'P.O. Box 818, Matsapha', phoneNumbers: ['+268 2518 9090'], email: 'admin@etgwu.org.sz', website: '', socialMedia: '@ETGWU', correspondenceContact: { name: 'Nokuthula Mamba', email: 'admin@etgwu.org.sz', phone: '+268 7912 4455' }, leadership: [{ position: 'President', name: 'Nokuthula Mamba', termOfOffice: '2025–2028' }], lastCongressDate: '2025-02-14', constitutionVersion: '2025 revision', executiveCommitteeSize: 7, declaredMembership: 1850, paidUpMembership: 1850, genderBreakdown: { female: 1200, male: 610, other: 40 }, ageGroups: '18–30: 780; 31–50: 920; 51+: 150', sectors: ['Manufacturing', 'Textiles'], regions: ['Manzini'], shopStewards: 42, duesRate: 'E25 per month', paymentHistory: 'Up to date through September 2026', financialStanding: 'Good standing' as FinancialStanding, bankDetails: 'On file with national office', status: 'Active' as AffiliateStatus, statusHistory: [{ status: 'Active' as AffiliateStatus, reason: 'Annual compliance review completed', changedAt: new Date('2026-02-20'), changedBy: 'user_1' }], documents: [], notes: '', active: true, createdAt: new Date('2016-03-22'), updatedAt: new Date('2026-09-30')
+  }
+]
 
 export const dummyFinancialRecords: FinancialRecord[] = [
   {
@@ -444,6 +476,9 @@ export function initializeDummyData() {
   }
   if (!localStorage.getItem('members')) {
     localStorage.setItem('members', JSON.stringify(dummyMembers))
+  }
+  if (!localStorage.getItem('affiliates')) {
+    localStorage.setItem('affiliates', JSON.stringify(dummyAffiliates))
   }
   if (!localStorage.getItem('financialRecords')) {
     localStorage.setItem('financialRecords', JSON.stringify(dummyFinancialRecords))

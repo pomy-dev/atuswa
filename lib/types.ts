@@ -40,10 +40,78 @@ export interface BoardMember {
   createdAt: Date
 }
 
+// TUCOSWA Affiliate Types
+export type AffiliateStatus = 'Active' | 'Provisional' | 'Suspended' | 'Expelled' | 'Withdrawn'
+export type FinancialStanding = 'Good standing' | 'Arrears' | 'Suspended'
+
+export interface AffiliateLeadership {
+  position: string
+  name: string
+  email?: string
+  phone?: string
+  termOfOffice?: string
+}
+
+export interface AffiliateStatusChange {
+  status: AffiliateStatus
+  reason: string
+  changedAt: Date
+  changedBy: string
+}
+
+export interface AffiliateDocument {
+  id: string
+  name: string
+  category: 'Constitution' | 'Registration' | 'Minutes' | 'Resolution' | 'Financial' | 'Other'
+  version?: string
+  url?: string
+  uploadedAt: Date
+}
+
+export interface Affiliate {
+  id: string
+  affiliateId: string
+  officialName: string
+  acronym: string
+  registrationNumber?: string
+  affiliationDate: string
+  foundingDate?: string
+  physicalAddress: string
+  postalAddress?: string
+  phoneNumbers: string[]
+  email?: string
+  website?: string
+  socialMedia?: string
+  correspondenceContact: { name: string; email?: string; phone?: string }
+  leadership: AffiliateLeadership[]
+  lastCongressDate?: string
+  constitutionVersion?: string
+  executiveCommitteeSize: number
+  declaredMembership: number
+  paidUpMembership: number
+  genderBreakdown: { female: number; male: number; other: number }
+  ageGroups: string
+  sectors: string[]
+  regions: string[]
+  shopStewards: number
+  duesRate?: string
+  paymentHistory?: string
+  financialStanding: FinancialStanding
+  bankDetails?: string
+  status: AffiliateStatus
+  statusHistory: AffiliateStatusChange[]
+  documents: AffiliateDocument[]
+  notes?: string
+  active: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
 // Member Types
 export interface Member {
   id: string
   branchId?: string
+  affiliateId?: string
   name: string
   email: string
   memberId: string
@@ -54,6 +122,9 @@ export interface Member {
   nextOfKin: string
   nextOfKinPhone: string
   gender: 'Male' | 'Female' | 'Other'
+  jobCategory?: string
+  subscriptionStatus?: 'Paid' | 'Pending' | 'In arrears'
+  tucoswaStatus?: 'Active' | 'Resigned' | 'Deceased' | 'Transferred'
   photo?: string
   joinDate: Date
 }
