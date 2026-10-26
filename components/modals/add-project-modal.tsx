@@ -56,7 +56,7 @@ export function AddProjectModal({ open, onOpenChange, onSubmit, isLoading, branc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
           <DialogDescription>Add a new union project</DialogDescription>

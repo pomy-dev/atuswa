@@ -74,7 +74,7 @@ export function EventInviteModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Send Event Invitations</DialogTitle>
         </DialogHeader>

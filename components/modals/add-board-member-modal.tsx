@@ -59,7 +59,7 @@ export function AddBoardMemberModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Board Member</DialogTitle>
           <DialogDescription>Add a new board member to leadership</DialogDescription>

@@ -63,7 +63,7 @@ export function AddBranchModal({ open, onOpenChange, onSubmit, isLoading }: AddB
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Branch</DialogTitle>
           <DialogDescription>Create a new branch and assign an admin</DialogDescription>
