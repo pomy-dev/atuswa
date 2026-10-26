@@ -75,21 +75,38 @@ export function RegisterAffiliateModal({ open, onOpenChange, onSubmit, initialAf
   }
 
   const field = (key: keyof FormData, label: string, props: ComponentProps<typeof Input> = {}) => (
-    <div className="space-y-1.5"><Label htmlFor={key}>{label}</Label><Input id={key} value={formData[key] as string} onChange={event => update(key, event.target.value)} {...props} /></div>
+    <div className="space-y-1.5">
+      <Label htmlFor={key}>{label}</Label>
+      <Input id={key} value={formData[key] as string} onChange={event => update(key, event.target.value)} {...props} />
+    </div>
   )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
-        <DialogHeader><DialogTitle>{initialAffiliate ? 'Update affiliate record' : 'Register affiliate union'}</DialogTitle><DialogDescription>Capture the affiliate’s identity, governance, membership, financial standing, and supporting records.</DialogDescription></DialogHeader>
+      <DialogContent className="max-h-[82vh] max-w-4xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{initialAffiliate ? 'Update affiliate record' : 'Register affiliate union'}</DialogTitle>
+          <DialogDescription>Capture the affiliate’s identity, governance, membership, financial standing, and supporting records.</DialogDescription>
+        </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-7">
           <section className="space-y-4"><div><h3 className="font-semibold text-foreground">Identification</h3><p className="text-sm text-muted-foreground">The master record for a TUCOSWA affiliate.</p></div><div className="grid gap-4 md:grid-cols-3">{field('affiliateId', 'Unique affiliate ID', { placeholder: 'Generated if blank' })}{field('officialName', 'Official name *', { required: true, className: 'md:col-span-2' })}{field('acronym', 'Acronym *', { required: true })}{field('registrationNumber', 'Registration / incorporation number')}{field('affiliationDate', 'Date affiliated', { type: 'date' })}{field('foundingDate', 'Date founded / legally registered', { type: 'date' })}</div></section>
           <section className="space-y-4"><h3 className="font-semibold text-foreground">Contact & administration</h3><div className="grid gap-4 md:grid-cols-2">{field('physicalAddress', 'Physical address *', { required: true })}{field('postalAddress', 'Postal address')}{field('phoneNumbers', 'Phone numbers', { placeholder: '+268 2404 0000, +268 7600 0000' })}{field('email', 'General email', { type: 'email' })}{field('website', 'Website')}{field('socialMedia', 'Social media handles')}</div><div className="rounded-xl border border-border bg-muted/30 p-4"><p className="mb-3 text-sm font-semibold">Official correspondence contact</p><div className="grid gap-4 md:grid-cols-3">{field('correspondenceName', 'Name *', { required: true })}{field('correspondenceEmail', 'Email', { type: 'email' })}{field('correspondencePhone', 'Phone', { type: 'tel' })}</div></div></section>
           <section className="space-y-4"><h3 className="font-semibold text-foreground">Leadership & governance</h3><div className="grid gap-4 md:grid-cols-3">{field('presidentName', 'President')}{field('secretaryName', 'Secretary General')}{field('treasurerName', 'Treasurer')}{field('lastCongressDate', 'Last congress / AGM', { type: 'date' })}{field('constitutionVersion', 'Constitution / rules version')}{field('executiveCommitteeSize', 'National executive members', { type: 'number', min: 0 })}</div></section>
           <section className="space-y-4"><h3 className="font-semibold text-foreground">Membership & sectors</h3><div className="grid gap-4 md:grid-cols-4">{field('declaredMembership', 'Declared membership', { type: 'number', min: 0 })}{field('paidUpMembership', 'Paid-up membership', { type: 'number', min: 0 })}{field('femaleMembers', 'Women members', { type: 'number', min: 0 })}{field('maleMembers', 'Men members', { type: 'number', min: 0 })}{field('otherMembers', 'Other / undisclosed', { type: 'number', min: 0 })}{field('shopStewards', 'Shop stewards', { type: 'number', min: 0 })}{field('ageGroups', 'Age-group breakdown', { placeholder: '18–30: 100; 31–50: 250; 51+: 50', className: 'md:col-span-2' })}{field('sectors', 'Sectors covered', { placeholder: 'Education, manufacturing, public service', className: 'md:col-span-2' })}{field('regions', 'Regions / branches', { placeholder: 'Hhohho, Manzini, Lubombo, Shiselweni', className: 'md:col-span-2' })}</div></section>
           <section className="space-y-4"><h3 className="font-semibold text-foreground">Financial & compliance</h3><div className="grid gap-4 md:grid-cols-2">{field('duesRate', 'Subscription / dues rate')}{field('paymentHistory', 'Payment history', { placeholder: 'Current through September 2026' })}{field('bankDetails', 'Bank details / payment reference')}{field('documentNames', 'Document register', { placeholder: 'Constitution.pdf, registration certificate.pdf' })}</div><div className="grid gap-4 md:grid-cols-2"><div className="space-y-1.5"><Label htmlFor="financialStanding">Financial standing</Label><select id="financialStanding" value={formData.financialStanding} onChange={event => update('financialStanding', event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option>Good standing</option><option>Arrears</option><option>Suspended</option></select></div><div className="space-y-1.5"><Label htmlFor="status">Affiliation status</Label><select id="status" value={formData.status} onChange={event => update('status', event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option>Provisional</option><option>Active</option><option>Suspended</option><option>Expelled</option><option>Withdrawn</option></select></div></div></section>
-          <section className="space-y-2"><Label htmlFor="notes">Restricted internal notes</Label><Textarea id="notes" value={formData.notes} onChange={event => update('notes', event.target.value)} placeholder="Compliance notes, follow-ups, or internal comments" /></section>
-          <div className="flex justify-end gap-2 border-t border-border pt-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" disabled={isLoading}>{isLoading && <Spinner className="mr-2 h-4 w-4" />}{initialAffiliate ? 'Save affiliate' : 'Register affiliate'}</Button></div>
+          <section className="space-y-2">
+            <Label htmlFor="notes">Restricted internal notes</Label>
+            <Textarea id="notes" value={formData.notes} onChange={event => update('notes', event.target.value)} placeholder="Compliance notes, follow-ups, or internal comments" />
+
+          </section>
+          <div className="flex justify-end gap-2 border-t border-border pt-4">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={isLoading}>{
+              isLoading && <Spinner className="mr-2 h-4 w-4" />
+            }{
+                initialAffiliate ? 'Save affiliate' : 'Register affiliate'}
+            </Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
