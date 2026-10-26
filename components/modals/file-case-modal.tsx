@@ -101,7 +101,7 @@ export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileC
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>File New Support Case</DialogTitle>
         </DialogHeader>

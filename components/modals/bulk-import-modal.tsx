@@ -92,7 +92,7 @@ export function BulkImportModal({ open, onOpenChange, onSubmit, isLoading }: Bul
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-96 overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Bulk Import Members</DialogTitle>
         </DialogHeader>

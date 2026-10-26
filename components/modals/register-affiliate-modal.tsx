@@ -80,7 +80,7 @@ export function RegisterAffiliateModal({ open, onOpenChange, onSubmit, initialAf
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
         <DialogHeader><DialogTitle>{initialAffiliate ? 'Update affiliate record' : 'Register affiliate union'}</DialogTitle><DialogDescription>Capture the affiliate’s identity, governance, membership, financial standing, and supporting records.</DialogDescription></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-7">
           <section className="space-y-4"><div><h3 className="font-semibold text-foreground">Identification</h3><p className="text-sm text-muted-foreground">The master record for a TUCOSWA affiliate.</p></div><div className="grid gap-4 md:grid-cols-3">{field('affiliateId', 'Unique affiliate ID', { placeholder: 'Generated if blank' })}{field('officialName', 'Official name *', { required: true, className: 'md:col-span-2' })}{field('acronym', 'Acronym *', { required: true })}{field('registrationNumber', 'Registration / incorporation number')}{field('affiliationDate', 'Date affiliated', { type: 'date' })}{field('foundingDate', 'Date founded / legally registered', { type: 'date' })}</div></section>
