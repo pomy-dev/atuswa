@@ -37,13 +37,13 @@ export function Sidebar() {
       roles: [UserRole.SECRETARY_GENERAL]
     },
     {
-      label: 'NEC Members',
+      label: 'Board Members',
       href: '/board',
       icon: UserCog,
       roles: [UserRole.SECRETARY_GENERAL]
     },
     {
-      label: 'Tucoswa Members',
+      label: 'Tucoswa Affiliates',
       href: '/members',
       icon: Users,
       roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN]
@@ -76,7 +76,7 @@ export function Sidebar() {
       label: 'E-Filing',
       href: '/e-filing',
       icon: FileText,
-      roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.PROJECT_COORDINATOR]
+      roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.PROJECT_COORDINATOR, UserRole.EVENTS_MANAGER, UserRole.TREASURER]
     },
     {
       label: 'Settings',

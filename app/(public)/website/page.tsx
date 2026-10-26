@@ -83,7 +83,7 @@ export default function PublicWebsite() {
   return (
     <div className="min-h-screen overflow-hidden bg-[#f8fafb] text-slate-900">
       <div className="bg-[#173f5f] px-4 py-2 text-center text-xs font-semibold tracking-[0.18em] text-white/90">
-        TUCOSWA · TRADE UNION CONGRESS OF ESWATINI
+        TUCOSWA · TRADE UNION CONGRESS OF SWAZILAND
       </div>
 
       <nav className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
@@ -118,7 +118,7 @@ export default function PublicWebsite() {
                 <span className="h-2 w-2 rounded-full bg-[#f4c95d]" /> A united labour centre for Eswatini
               </div>
               <h1 className="max-w-3xl text-5xl font-black leading-[0.98] tracking-[-0.04em] sm:text-6xl lg:text-7xl">Work has dignity.<br /><span className="text-[#f4c95d]">Workers have power.</span></h1>
-              <p className="mt-7 max-w-xl text-lg leading-8 text-slate-200 sm:text-xl">TUCOSWA brings workers and unions together to advance social justice, democratic participation, decent work, and a stronger voice for working families across Eswatini.</p>
+              <p className="mt-7 max-w-xl text-lg leading-8 text-slate-200 sm:text-xl">TUCOSWA brings workers and unions together to advance social justice, democratic participation, decent work, and a stronger voice for working families across Swaziland.</p>
               <div className="mt-9 flex flex-wrap gap-3">
                 <Button size="lg" className="gap-2 bg-[#e96b3b] px-6 text-white hover:bg-[#d9582b]" onClick={() => setShowAddMemberModal(true)}><UsersRound className="h-4 w-4" /> Become a member</Button>
                 <Button size="lg" variant="outline" className="border-white/30 bg-white/10 px-6 text-white hover:bg-white/20 hover:text-white" onClick={() => aboutSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}>Discover our work <ArrowRight className="h-4 w-4" /></Button>
@@ -150,7 +150,7 @@ export default function PublicWebsite() {
             <div>
               <p className="text-xs font-black uppercase tracking-[0.2em] text-[#e96b3b]">Our movement</p>
               <h2 className="mt-4 text-4xl font-black leading-tight tracking-tight text-[#173f5f] sm:text-5xl">Built from unity. Focused on justice.</h2>
-              <p className="mt-6 text-lg leading-8 text-slate-600">Formed in 2012 through the coming together of major union centres, TUCOSWA exists to strengthen workers’ collective voice and defend the rights of every worker in Eswatini.</p>
+              <p className="mt-6 text-lg leading-8 text-slate-600">Formed in 2012 through the coming together of major union centres, TUCOSWA exists to strengthen workers’ collective voice and defend the rights of every worker in Swaziland.</p>
               <p className="mt-5 text-base leading-7 text-slate-500">Our work connects workplace organising with the wider pursuit of dignity, equality, democracy, and accountable institutions.</p>
               <Button variant="outline" className="mt-7 gap-2 border-[#173f5f]/20 text-[#173f5f] hover:bg-[#173f5f] hover:text-white" onClick={() => setShowFileModal(true)}>Raise a workplace concern <ArrowRight className="h-4 w-4" /></Button>
             </div>
