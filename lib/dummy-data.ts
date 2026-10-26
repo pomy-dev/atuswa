@@ -37,7 +37,7 @@ export const dummyUsers: User[] = [
   {
     id: 'user_3',
     email: 'treasurer@tucoswa.org',
-    name: 'James Lukhele',
+    name: 'Khontile Zwane',
     role: UserRole.TREASURER,
     branchId: 'branch_main',
     password: 'demo123',

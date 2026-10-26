@@ -89,7 +89,8 @@ export default function PublicWebsite() {
       <nav className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <a href="#top" className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e96b3b] text-xl font-black text-white shadow-lg shadow-orange-900/10">T</span>
+            {/* <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e96b3b] text-xl font-black text-white shadow-lg shadow-orange-900/10">T</span> */}
+            <img src="/logo.png" alt="TUCOSWA logo" className="h-11 w-11 rounded-2xl object-cover shadow-lg shadow-orange-900/10" />
             <span>
               <span className="block text-lg font-black tracking-tight text-[#173f5f]">TUCOSWA</span>
               <span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">One voice. One movement.</span>

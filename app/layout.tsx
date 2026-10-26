@@ -23,7 +23,7 @@ export default function RootLayout({
     <html lang="en" className="bg-background">
       <head>
         <title>TUCOSWA - Management System</title>
-        <link rel="icon" href="/logo.jpg" />
+        <link rel="icon" href="/logo.png" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="description" content="Union Management System" />
       </head>
