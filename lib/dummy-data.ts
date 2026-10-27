@@ -22,7 +22,7 @@ export const dummyUsers: User[] = [
   {
     id: 'user_1',
     email: 'sg@tucoswa.org',
-    name: 'Ngcebo Simelane',
+    name: 'Eunice Dlamini',
     role: UserRole.SECRETARY_GENERAL,
     branchId: 'branch_main',
     password: 'demo123',
@@ -49,7 +49,7 @@ export const dummyUsers: User[] = [
   {
     id: 'user_4',
     email: 'projects@tucoswa.org',
-    name: 'Maria Santos',
+    name: 'Fundizwi Sikhondze',
     role: UserRole.PROJECT_COORDINATOR,
     branchId: 'branch_2',
     password: 'demo123',
