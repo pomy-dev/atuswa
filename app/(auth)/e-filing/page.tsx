@@ -28,7 +28,7 @@ export default function EFilingPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Can only access if authorized
-  if (![UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.PROJECT_COORDINATOR].includes(user?.role!)) {
+  if (![UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.PROJECT_COORDINATOR, UserRole.TREASURER].includes(user?.role!)) {
     return (
       <div className="p-6">
         <Card>
