@@ -1,34 +1,69 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useMemo, useEffect } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
-import { UserRole, Branch } from '@/lib/types'
-import { Plus, MapPin, Users } from 'lucide-react'
+import { UserRole, Branch, User } from '@/lib/types'
+import {
+  Plus,
+  MapPin,
+  Users,
+  Mail,
+  Calendar,
+  Pencil,
+  Trash2,
+  Power,
+  UserPlus,
+  MoreHorizontal,
+} from 'lucide-react'
 import { AddBranchModal } from '@/components/modals/add-branch-modal'
-import { User, UserRole as Role } from '@/lib/types'
+import { AssignBranchAdminModal } from '@/components/modals/assign-branch-admin-modal'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
 
 export default function BranchesPage() {
   const { user } = useAuth()
-  const [branches, setBranches] = useState<Branch[]>(() =>
-    JSON.parse(localStorage.getItem('branches') || '[]')
-  )
-  const [showForm, setShowForm] = useState(false)
-  const [showAddBranchModal, setShowAddBranchModal] = useState(false)
+  const [branches, setBranches] = useState<Branch[]>([])
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showAssignModal, setShowAssignModal] = useState(false)
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null)
+  const [assigningBranch, setAssigningBranch] = useState<Branch | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState({ name: '', location: '' })
 
-  // Secretary General only
+  useEffect(() => {
+    const stored = JSON.parse(localStorage.getItem('branches') || '[]')
+    const normalized = stored.map((b: any) => ({
+      ...b,
+      isActive: b.isActive ?? true,
+      contactEmail: b.contactEmail ?? '',
+      createdAt: b.createdAt ? new Date(b.createdAt) : new Date(),
+    }))
+    setBranches(normalized)
+  }, [])
+
   if (user?.role !== UserRole.SECRETARY_GENERAL) {
     return (
       <div className="p-6">
         <Card>
           <CardContent className="pt-6">
-            <p className="text-muted-foreground">Only the Secretary General can manage branches.</p>
+            <p className="text-muted-foreground">
+              Only the Secretary General can manage branches.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -42,24 +77,44 @@ export default function BranchesPage() {
       counts[m.branchId] = (counts[m.branchId] || 0) + 1
     })
     return counts
-  }, [])
+  }, [branches])
 
-  const handleAddBranch = () => {
-    if (!formData.name || !formData.location) return
-
-    const newBranch: Branch = {
-      id: `branch_${Date.now()}`,
-      name: formData.name,
-      location: formData.location,
-      adminId: user!.id,
-      createdAt: new Date()
-    }
-
-    const updated = [...branches, newBranch]
+  const persistBranches = (updated: Branch[]) => {
     setBranches(updated)
     localStorage.setItem('branches', JSON.stringify(updated))
-    setFormData({ name: '', location: '' })
-    setShowForm(false)
+  }
+
+  const handleToggleActive = (branchId: string) => {
+    const updated = branches.map((b) =>
+      b.id === branchId ? { ...b, isActive: !b.isActive } : b
+    )
+    persistBranches(updated)
+  }
+
+  const handleRemove = (branchId: string) => {
+    if (!confirm('Are you sure you want to remove this branch? This cannot be undone.')) {
+      return
+    }
+    persistBranches(branches.filter((b) => b.id !== branchId))
+  }
+
+  const handleEdit = (branch: Branch) => {
+    setEditingBranch(branch)
+    setShowAddModal(true)
+  }
+
+  const handleAssignAdmin = (branch: Branch) => {
+    setAssigningBranch(branch)
+    setShowAssignModal(true)
+  }
+
+  const formatDate = (date: Date | string) => {
+    const d = typeof date === 'string' ? new Date(date) : date
+    return d.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })
   }
 
   return (
@@ -67,92 +122,201 @@ export default function BranchesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Branches</h1>
-          <p className="text-muted-foreground mt-1">Manage union branches across regions</p>
+          <p className="text-muted-foreground mt-1">
+            Manage union branches across regions
+          </p>
         </div>
-        <Button onClick={() => setShowAddBranchModal(true)} className="gap-2">
+        <Button
+          onClick={() => {
+            setEditingBranch(null)
+            setShowAddModal(true)
+          }}
+          className="gap-2"
+        >
           <Plus className="w-4 h-4" />
           New Branch
         </Button>
       </div>
 
-      {showForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Add New Branch</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Branch Name</Label>
-              <Input
-                id="name"
-                placeholder="e.g., Western Region"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
-              <Input
-                id="location"
-                placeholder="e.g., Ibadan, Nigeria"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleAddBranch}>Add Branch</Button>
-              <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>All Branches</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {branches.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">
+              No branches yet. Create the first one.
+            </p>
+          ) : (
+            <div className="rounded-md border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Joining Date</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Contact Email</TableHead>
+                    <TableHead>Members</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {branches.map((branch) => (
+                    <TableRow key={branch.id}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {branch.name}
+                          {branch.id === 'branch_main' && (
+                            <Badge variant="secondary" className="text-xs">
+                              HQ
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {formatDate(branch.createdAt)}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                          {branch.location}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {branch.contactEmail ? (
+                          <div className="flex items-center gap-1.5 text-sm">
+                            <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                            {branch.contactEmail}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">Not assigned</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                          {memberCounts[branch.id] ?? branch.memberCount ?? 0}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={branch.isActive ? 'default' : 'secondary'}
+                          className={
+                            branch.isActive
+                              ? 'bg-green-100 text-green-800 hover:bg-green-100'
+                              : 'bg-gray-100 text-gray-600'
+                          }
+                        >
+                          {branch.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Open menu</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEdit(branch)}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
 
-      <div className="grid gap-4">
-        {branches.map((branch) => (
-          <Card key={branch.id} className="hover:shadow-md transition-shadow">
-            <CardContent className="pt-6">
-              <div className="flex items-start justify-between">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-semibold">{branch.name}</h3>
-                    <Badge variant="secondary">{branch.id === 'branch_main' ? 'Headquarters' : 'Regional'}</Badge>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <MapPin className="w-4 h-4" />
-                    {branch.location}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Users className="w-4 h-4" />
-                    {memberCounts[branch.id] || 0} Members
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                            <DropdownMenuItem onClick={() => handleAssignAdmin(branch)}>
+                              <UserPlus className="mr-2 h-4 w-4" />
+                              {branch.adminId ? 'Re-assign Admin' : 'Assign Admin'}
+                            </DropdownMenuItem>
 
+                            <DropdownMenuItem onClick={() => handleToggleActive(branch.id)}>
+                              <Power className="mr-2 h-4 w-4" />
+                              {branch.isActive ? 'Deactivate' : 'Activate'}
+                            </DropdownMenuItem>
+
+                            <DropdownMenuSeparator />
+
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => handleRemove(branch.id)}
+                              disabled={branch.id === 'branch_main'}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Remove
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Create / Edit Branch Modal */}
       <AddBranchModal
-        open={showAddBranchModal}
-        onOpenChange={setShowAddBranchModal}
-        onSubmit={(branch, admin) => {
+        open={showAddModal}
+        onOpenChange={(open) => {
+          setShowAddModal(open)
+          if (!open) setEditingBranch(null)
+        }}
+        editingBranch={editingBranch}
+        onSubmit={(branch) => {
           setIsLoading(true)
           try {
-            const allBranches = JSON.parse(localStorage.getItem('branches') || '[]')
-            const updated = [...allBranches, branch]
-            localStorage.setItem('branches', JSON.stringify(updated))
-            setBranches(b => [...b, branch])
-            
-            // Add branch admin if provided
-            if (admin) {
-              const allUsers = JSON.parse(localStorage.getItem('users') || '[]')
-              const updatedUsers = [...allUsers, admin]
-              localStorage.setItem('users', JSON.stringify(updatedUsers))
+            if (editingBranch) {
+              const updated = branches.map((b) =>
+                b.id === editingBranch.id ? { ...b, ...branch } : b
+              )
+              persistBranches(updated)
+            } else {
+              persistBranches([...branches, branch])
             }
-            
-            setShowAddBranchModal(false)
+            setShowAddModal(false)
+            setEditingBranch(null)
+          } finally {
+            setIsLoading(false)
+          }
+        }}
+        isLoading={isLoading}
+      />
+
+      {/* Assign Admin Modal */}
+      <AssignBranchAdminModal
+        open={showAssignModal}
+        onOpenChange={(open) => {
+          setShowAssignModal(open)
+          if (!open) setAssigningBranch(null)
+        }}
+        branch={assigningBranch}
+        onSubmit={(updatedBranch, admin) => {
+          setIsLoading(true)
+          try {
+            // Update branch
+            const updatedBranches = branches.map((b) =>
+              b.id === updatedBranch.id ? updatedBranch : b
+            )
+            persistBranches(updatedBranches)
+
+            // Add / replace the admin user
+            const allUsers: User[] = JSON.parse(localStorage.getItem('users') || '[]')
+
+            // Optional: remove previous admin of this branch if you want strict 1-admin-per-branch
+            const filteredUsers = allUsers.filter(
+              (u) => !(u.role === UserRole.BRANCH_ADMIN && u.branchId === updatedBranch.id)
+            )
+
+            localStorage.setItem('users', JSON.stringify([...filteredUsers, admin]))
+
+            setShowAssignModal(false)
+            setAssigningBranch(null)
           } finally {
             setIsLoading(false)
           }

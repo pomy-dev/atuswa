@@ -14,7 +14,6 @@ export interface User {
   role: UserRole
   branchId: string
   photo?: string
-  password: string
   createdAt: Date
 }
 
@@ -23,8 +22,11 @@ export interface Branch {
   id: string
   name: string
   location: string
-  adminId: string
-  createdAt: Date
+  contactEmail?: string
+  isActive: boolean
+  memberCount?: number
+  adminId?: string
+  createdAt: Date | string
 }
 
 // Board Member Types
@@ -342,7 +344,9 @@ export interface EFileFolder {
 export interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
-  login: (email: string, password: string) => void
-  logout: () => void
-  register: (email: string, name: string, password: string, role: UserRole) => void
+  isLoading: boolean
+  login: (email: string, password: string) => Promise<void>
+  logout: () => Promise<void>
+  register: (email: string, name: string, password: string) => Promise<void>
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<void>
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { Sidebar } from '@/components/layout/sidebar'
@@ -11,25 +11,16 @@ export default function AuthLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated, isLoading, user } = useAuth()
   const router = useRouter()
-  const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
-    // Give the auth context time to restore the session from localStorage
-    const timer = setTimeout(() => {
-      setIsChecking(false)
-    }, 100)
-    return () => clearTimeout(timer)
-  }, [])
-
-  useEffect(() => {
-    if (!isChecking && !isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       router.push('/login')
     }
-  }, [isChecking, isAuthenticated, router])
+  }, [isLoading, isAuthenticated, router])
 
-  if (isChecking || !isAuthenticated) {
+  if (isLoading || !isAuthenticated) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-muted-foreground">Loading...</div>

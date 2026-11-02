@@ -10,7 +10,7 @@ import { useAuth } from '@/lib/auth-context'
 import { User, Mail, Building2, Calendar, Lock, Activity, Clock } from 'lucide-react'
 
 export default function SettingsPage() {
-  const { user } = useAuth()
+  const { user, updatePassword } = useAuth()
   const [showPasswordForm, setShowPasswordForm] = useState(false)
   const [passwordData, setPasswordData] = useState({
     oldPassword: '',
@@ -26,7 +26,7 @@ export default function SettingsPage() {
     setActivityLogs(logs.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()))
   }, [user])
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
     setPasswordError('')
     setPasswordMessage('')
@@ -51,35 +51,22 @@ export default function SettingsPage() {
       return
     }
 
-    const users = JSON.parse(localStorage.getItem('users') || '[]')
-    const userIndex = users.findIndex((u: any) => u.id === user?.id)
-
-    if (userIndex === -1) {
-      setPasswordError('User not found')
-      return
+    try {
+      await updatePassword(passwordData.oldPassword, passwordData.newPassword)
+      const logs = JSON.parse(localStorage.getItem(`activity_logs_${user?.id}`) || '[]')
+      logs.push({
+        timestamp: new Date().toISOString(),
+        action: 'Password Changed',
+        details: 'User changed their password'
+      })
+      localStorage.setItem(`activity_logs_${user?.id}`, JSON.stringify(logs))
+      setPasswordMessage('Password changed successfully!')
+      setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' })
+      setShowPasswordForm(false)
+      setTimeout(() => setPasswordMessage(''), 3000)
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : 'Unable to change password.')
     }
-
-    if (users[userIndex].password !== passwordData.oldPassword) {
-      setPasswordError('Old password is incorrect')
-      return
-    }
-
-    users[userIndex].password = passwordData.newPassword
-    localStorage.setItem('users', JSON.stringify(users))
-
-    // Log the password change
-    const logs = JSON.parse(localStorage.getItem(`activity_logs_${user?.id}`) || '[]')
-    logs.push({
-      timestamp: new Date().toISOString(),
-      action: 'Password Changed',
-      details: 'User changed their password'
-    })
-    localStorage.setItem(`activity_logs_${user?.id}`, JSON.stringify(logs))
-
-    setPasswordMessage('Password changed successfully!')
-    setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' })
-    setShowPasswordForm(false)
-    setTimeout(() => setPasswordMessage(''), 3000)
   }
 
   return (

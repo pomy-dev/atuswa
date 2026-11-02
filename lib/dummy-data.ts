@@ -1,5 +1,4 @@
 import {
-  User,
   UserRole,
   Branch,
   Member,
@@ -17,54 +16,6 @@ import {
   IncomeSource,
   ExpenseCategory
 } from './types'
-
-export const dummyUsers: User[] = [
-  {
-    id: 'user_1',
-    email: 'sg@tucoswa.org',
-    name: 'Eunice Dlamini',
-    role: UserRole.SECRETARY_GENERAL,
-    branchId: 'branch_main',
-    password: 'demo123',
-    createdAt: new Date('2024-01-01')
-  },
-  {
-    id: 'user_2',
-    email: 'branch@tucoswa.org',
-    name: 'Sarah Mkhonta',
-    role: UserRole.BRANCH_ADMIN,
-    branchId: 'branch_1',
-    password: 'demo123',
-    createdAt: new Date('2024-01-15')
-  },
-  {
-    id: 'user_3',
-    email: 'treasurer@tucoswa.org',
-    name: 'Khontile Zwane',
-    role: UserRole.TREASURER,
-    branchId: 'branch_main',
-    password: 'demo123',
-    createdAt: new Date('2024-01-20')
-  },
-  {
-    id: 'user_4',
-    email: 'projects@tucoswa.org',
-    name: 'Fundizwi Sikhondze',
-    role: UserRole.PROJECT_COORDINATOR,
-    branchId: 'branch_2',
-    password: 'demo123',
-    createdAt: new Date('2024-02-01')
-  },
-  {
-    id: 'user_5',
-    email: 'events@tucoswa.org',
-    name: 'David Thompson',
-    role: UserRole.EVENTS_MANAGER,
-    branchId: 'branch_1',
-    password: 'demo123',
-    createdAt: new Date('2024-02-10')
-  }
-]
 
 export const dummyBranches: Branch[] = [
   {
@@ -448,26 +399,10 @@ export const dummyHelpDeskCases: HelpDeskCase[] = [
 ]
 
 export function initializeDummyData() {
-  const storedUsers = localStorage.getItem('users')
-  if (storedUsers) {
-    const users = JSON.parse(storedUsers)
-    const migratedUsers = users.map((user: User) => ({
-      ...user,
-      email: user.email.replace(/@xn--atusw-1qa\.org$/i, '@tucoswa.org')
-    }))
-    localStorage.setItem('users', JSON.stringify(migratedUsers))
-  }
+  // Remove legacy demo credentials and locally cached auth profiles.
+  localStorage.removeItem('users')
+  localStorage.removeItem('auth_user')
 
-  const storedAuthUser = localStorage.getItem('auth_user')
-  if (storedAuthUser) {
-    const authUser = JSON.parse(storedAuthUser) as User
-    authUser.email = authUser.email.replace(/@xn--atusw-1qa\.org$/i, '@tucoswa.org')
-    localStorage.setItem('auth_user', JSON.stringify(authUser))
-  }
-
-  if (!localStorage.getItem('users')) {
-    localStorage.setItem('users', JSON.stringify(dummyUsers))
-  }
   if (!localStorage.getItem('branches')) {
     localStorage.setItem('branches', JSON.stringify(dummyBranches))
   }

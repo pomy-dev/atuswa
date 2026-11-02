@@ -37,7 +37,7 @@ export function Sidebar() {
       roles: [UserRole.SECRETARY_GENERAL]
     },
     {
-      label: 'Board Members',
+      label: 'Users',
       href: '/board',
       icon: UserCog,
       roles: [UserRole.SECRETARY_GENERAL]
