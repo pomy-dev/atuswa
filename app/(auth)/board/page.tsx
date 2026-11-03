@@ -99,13 +99,13 @@ interface ActivityLogEntry {
 
 // ---------- Mock initial data (replace with your real source) ----------
 const ALL_PERMISSIONS: Permission[] = [
-  { id: 'users.view', label: 'View Users' },
-  { id: 'users.create', label: 'Create Users' },
-  { id: 'users.edit', label: 'Edit Users' },
-  { id: 'users.delete', label: 'Delete Users' },
-  { id: 'roles.manage', label: 'Manage Roles' },
-  { id: 'board.manage', label: 'Manage Board' },
-  { id: 'reports.view', label: 'View Reports' },
+  { id: 'read', label: 'Read' },
+  { id: 'write', label: 'Write' },
+  { id: 'delete', label: 'Delete' },
+  { id: 'archive', label: 'Archive' },
+  { id: 'generate.reports', label: 'Generate Reports' },
+  { id: 'configure.users', label: 'Configure Users' },
+  { id: 'communications', label: 'Communications' },
   { id: 'settings.edit', label: 'Edit Settings' },
 ]
 
@@ -116,7 +116,7 @@ const INITIAL_ROLES: Role[] = [
     description: 'Full system access',
     permissions: ALL_PERMISSIONS.map((p) => p.id),
     createdAt: '2024-01-15T10:00:00Z',
-  },
+  },  
   {
     id: 'role_admin',
     name: 'Admin',
@@ -600,13 +600,10 @@ export default function UserManagementPage() {
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
-                            <DropdownMenuTrigger>
-                              <Button
-                                type="button"
-                                className={buttonVariants({ variant: 'ghost', size: 'icon' })}
-                              >
-                                <MoreVertical className="w-4 h-4" />
-                              </Button>
+                            <DropdownMenuTrigger
+                              className={buttonVariants({ variant: 'ghost', size: 'icon' })}
+                            >
+                              <MoreVertical className="w-4 h-4" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem

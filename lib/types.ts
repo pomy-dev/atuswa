@@ -1,6 +1,6 @@
 // User/Auth Types
 export enum UserRole {
-  SECRETARY_GENERAL = 'sg',
+  SECRETARY_GENERAL = 'secretary_general',
   BRANCH_ADMIN = 'branch_admin',
   TREASURER = 'treasurer',
   PROJECT_COORDINATOR = 'project_coordinator',

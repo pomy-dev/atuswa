@@ -33,7 +33,7 @@ export function Header() {
           </div>
           <div className="text-sm">
             <p className="font-medium text-foreground">{user?.name}</p>
-            <p className="text-xs text-muted-foreground">{user?.role}</p>
+            {/* <p className="text-xs text-muted-foreground">{user?.role}</p> */}
           </div>
         </div>
       </div>

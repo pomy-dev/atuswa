@@ -25,7 +25,7 @@ export function Sidebar() {
 
   const menuItems = [
     {
-      label: 'Dashboard',
+      label: 'Overview',
       href: '/dashboard',
       icon: LayoutDashboard,
       roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.TREASURER, UserRole.PROJECT_COORDINATOR, UserRole.EVENTS_MANAGER]
@@ -120,7 +120,7 @@ export function Sidebar() {
       <div className="p-4 border-t border-sidebar-border">
         <div className="bg-sidebar-accent/50 rounded-lg p-3 mb-4">
           <p className="text-xs font-semibold text-sidebar-foreground mb-1">Logged in as:</p>
-          <p className="text-sm text-sidebar-foreground font-medium truncate">{user?.name}</p>
+          {/* <p className="text-sm text-sidebar-foreground font-medium truncate">{user?.name}</p> */}
           <p className="text-xs text-sidebar-foreground/70">{user?.role.toUpperCase()}</p>
         </div>
         <button
