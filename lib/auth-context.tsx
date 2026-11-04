@@ -2,19 +2,10 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
-import { AuthContextType, User, UserRole } from './types'
+import { AuthContextType, User } from './types'
 import { getSupabaseBrowserClient } from './supabase/client'
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
-type Profile = {
-  id: string
-  full_name: string
-  role: UserRole
-  branch_id: string | null
-  photo_url: string | null
-  created_at: string
-}
 
 function configurationError() {
   return new Error('Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.')
@@ -24,21 +15,20 @@ async function mapSessionToUser(client: SupabaseClient, session: Session | null)
   if (!session?.user) return null
 
   const { data: profile, error } = await client
-    .from('profiles')
-    .select('id, full_name, role, branch_id, photo_url, created_at')
-    .eq('id', session.user.id)
-    .single<Profile>()
+    .rpc('get_profiles_with_roles', {
+      p_profile_id: session?.user.id
+    });
 
   if (error) throw new Error(`Unable to load your account profile: ${error.message}`)
 
   return {
-    id: profile.id,
+    id: profile[0].id,
     email: session.user.email ?? '',
-    name: profile.full_name,
-    role: profile.role,
-    branchId: profile.branch_id ?? '',
-    photo: profile.photo_url ?? undefined,
-    createdAt: new Date(profile.created_at)
+    name: profile[0].full_name,
+    role: profile[0].role?.role_name ?? 'user',
+    branchId: profile[0].branch_id ?? '',
+    photo: profile[0].photo_url ?? undefined,
+    createdAt: new Date(profile[0].created_at)
   }
 }
 

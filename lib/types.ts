@@ -1,3 +1,18 @@
+// ---------- Types ----------
+export interface Permission {
+  id: string
+  label: string
+  description?: string
+}
+
+export interface Role {
+  id: string
+  name: string
+  description?: string
+  permissions: string[]
+  createdAt: string
+}
+
 // User/Auth Types
 export enum UserRole {
   SECRETARY_GENERAL = 'secretary_general',

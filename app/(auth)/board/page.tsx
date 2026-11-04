@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -41,7 +41,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/lib/auth-context'
-import { UserRole } from '@/lib/types'
+import { UserRole, Permission, Role } from '@/lib/types'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import {
   Plus,
   Search,
@@ -60,22 +61,7 @@ import {
   Clock,
   KeyRound,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-
-// ---------- Types ----------
-interface Permission {
-  id: string
-  label: string
-  description?: string
-}
-
-interface Role {
-  id: string
-  name: string
-  description?: string
-  permissions: string[]
-  createdAt: string
-}
+import { cn, getAllPermissions, createRole, getAllRoles, updateRole, formatLabel } from '@/lib/utils'
 
 interface AppUser {
   id: string
@@ -96,42 +82,6 @@ interface ActivityLogEntry {
   timestamp: string
   ip?: string
 }
-
-// ---------- Mock initial data (replace with your real source) ----------
-const ALL_PERMISSIONS: Permission[] = [
-  { id: 'read', label: 'Read' },
-  { id: 'write', label: 'Write' },
-  { id: 'delete', label: 'Delete' },
-  { id: 'archive', label: 'Archive' },
-  { id: 'generate.reports', label: 'Generate Reports' },
-  { id: 'configure.users', label: 'Configure Users' },
-  { id: 'communications', label: 'Communications' },
-  { id: 'settings.edit', label: 'Edit Settings' },
-]
-
-const INITIAL_ROLES: Role[] = [
-  {
-    id: 'role_sg',
-    name: 'Secretary General',
-    description: 'Full system access',
-    permissions: ALL_PERMISSIONS.map((p) => p.id),
-    createdAt: '2024-01-15T10:00:00Z',
-  },  
-  {
-    id: 'role_admin',
-    name: 'Admin',
-    description: 'Administrative privileges',
-    permissions: ['users.view', 'users.create', 'users.edit', 'reports.view'],
-    createdAt: '2024-02-01T09:00:00Z',
-  },
-  {
-    id: 'role_member',
-    name: 'Member',
-    description: 'Standard member access',
-    permissions: ['users.view', 'reports.view'],
-    createdAt: '2024-02-10T14:30:00Z',
-  },
-]
 
 const INITIAL_USERS: AppUser[] = [
   {
@@ -204,7 +154,8 @@ export default function UserManagementPage() {
   const { user } = useAuth()
 
   // Data state (replace localStorage / API calls as needed)
-  const [roles, setRoles] = useState<Role[]>(INITIAL_ROLES)
+  const [roles, setRoles] = useState<Role[]>([])
+  const [permissions, setPermissions] = useState<Permission[]>([])
   const [users, setUsers] = useState<AppUser[]>(INITIAL_USERS)
   const [logs] = useState<ActivityLogEntry[]>(INITIAL_LOGS)
 
@@ -230,27 +181,60 @@ export default function UserManagementPage() {
   const [roleForm, setRoleForm] = useState({
     name: '',
     description: '',
-    permissions: [] as string[],
+    permissions: [] as Permission[],
   })
 
-  // Access control (adjust as needed)
-  if (user?.role !== UserRole.SECRETARY_GENERAL) {
-    return (
-      <div className="p-6">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground">
-              Only the Secretary General can manage users and roles.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  } 
+  // console.log(roleForm)
+
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false
+
+    const loadRolesAndPermissions = async () => {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) throw error
+      if (!session) return
+
+      const [loadedRoles, loadedPermissions] = await Promise.all([
+        getAllRoles(supabase, session),
+        getAllPermissions(supabase, session),
+      ])
+
+      if (!cancelled) {
+        setRoles(loadedRoles ?? [])
+        setPermissions(loadedPermissions ?? [])
+      }
+
+      console.log('Loaded roles:', loadedRoles)
+      console.log('Loaded permissions:', loadedPermissions)
+    }
+
+    void loadRolesAndPermissions().catch((error: unknown) => {
+      console.error('Unable to load roles and permissions:', error)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user]);
 
   // ---------- Helpers ----------
   const getRoleName = (roleId: string) =>
     roles.find((r) => r.id === roleId)?.name ?? 'Unknown'
+
+  const getRolePermissionIds = (role: Role): string[] =>
+    (role.permissions as unknown[]).flatMap((permission) => {
+      if (typeof permission === 'string') return [permission]
+      if (!permission || typeof permission !== 'object') return []
+
+      const permissionRecord = permission as Record<string, unknown>
+      const id = permissionRecord.id ?? permissionRecord.permission_id
+      return typeof id === 'string' ? [id] : []
+    })
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
@@ -368,51 +352,98 @@ export default function UserManagementPage() {
   }
 
   const openEditRole = (role: Role) => {
+    const selectedPermissionIds = new Set(getRolePermissionIds(role))
     setEditingRole(role)
     setRoleForm({
       name: role.name,
       description: role.description ?? '',
-      permissions: [...role.permissions],
+      permissions: permissions.filter((permission) =>
+        selectedPermissionIds.has(permission.id)
+      ),
     })
     setRoleSheetOpen(true)
   }
 
-  const handleSaveRole = () => {
+  const handleSaveRole = useCallback(async () => {
     if (!roleForm.name.trim()) return
 
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase) throw new Error('Supabase is not configured.')
+
+    const { data: { session }, error } = await supabase.auth.getSession()
+    if (error) throw error
+    if (!session) throw new Error('You must be signed in to manage roles.')
+
     if (editingRole) {
-      setRoles((prev) =>
-        prev.map((r) =>
-          r.id === editingRole.id
-            ? {
-              ...r,
-              name: roleForm.name,
-              description: roleForm.description,
-              permissions: roleForm.permissions,
-            }
-            : r
+      const rolePayload: Role = {
+        id: editingRole.id,
+        name: roleForm.name,
+        description: roleForm.description,
+        permissions: roleForm.permissions.map((p) => p.id),
+        createdAt: editingRole.createdAt
+      }
+      const updatedRole = await updateRole(supabase, session, rolePayload)
+
+      if (updatedRole) {
+        setRoles((prev) =>
+          prev.map((role) =>
+            role.id === editingRole.id
+              ? {
+                ...role,
+                name: roleForm.name,
+                description: roleForm.description,
+                permissions: roleForm.permissions.map((p) => p.id),
+              }
+              : role
+          )
         )
-      )
+      }
     } else {
-      const newRole: Role = {
+      const rolePayload: Role = {
         id: `role_${Date.now()}`,
         name: roleForm.name,
         description: roleForm.description,
-        permissions: roleForm.permissions,
+        permissions: roleForm.permissions.map((p) => p.id),
         createdAt: new Date().toISOString(),
       }
-      setRoles((prev) => [...prev, newRole])
+      const newRole = await createRole(supabase, session, rolePayload);
+      if (newRole) {
+        setRoles((prevRoles) => [...prevRoles, newRole])
+      };
     }
     setRoleSheetOpen(false)
-  }
+  }, [editingRole, roleForm])
 
-  const togglePermission = (permId: string) => {
-    setRoleForm((prev) => ({
-      ...prev,
-      permissions: prev.permissions.includes(permId)
-        ? prev.permissions.filter((p) => p !== permId)
-        : [...prev.permissions, permId],
-    }))
+  const togglePermission = (permissionToToggle: Permission) => {
+    setRoleForm((prev) => {
+      const isSelected = prev.permissions.some(
+        (p: Permission) => p.id === permissionToToggle.id
+      );
+
+      return {
+        ...prev,
+        permissions: isSelected
+          ? prev.permissions.filter(
+            (p: Permission) => p.id !== permissionToToggle.id
+          )
+          : [...prev.permissions, permissionToToggle],
+      };
+    });
+  };
+
+  // Access control (adjust as needed)
+  if (user?.role !== UserRole.SECRETARY_GENERAL) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-muted-foreground">
+              Only the Secretary General can manage users and roles.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   // ---------- Render ----------
@@ -460,7 +491,7 @@ export default function UserManagementPage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div>
-                      <CardTitle className="text-lg">{role.name}</CardTitle>
+                      <CardTitle className="text-lg">{formatLabel(role.name)}</CardTitle>
                       {role.description && (
                         <p className="text-sm text-muted-foreground mt-1">
                           {role.description}
@@ -478,17 +509,17 @@ export default function UserManagementPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-1.5">
-                    {role.permissions.slice(0, 4).map((pid) => {
-                      const perm = ALL_PERMISSIONS.find((p) => p.id === pid)
+                    {getRolePermissionIds(role).slice(0, 4).map((permissionId) => {
+                      const permission = permissions.find((p) => p.id === permissionId)
                       return (
-                        <Badge key={pid} variant="secondary" className="text-xs">
-                          {perm?.label ?? pid}
+                        <Badge key={permissionId} variant="secondary" className="text-xs">
+                          {permission?.label ?? permissionId}
                         </Badge>
                       )
                     })}
-                    {role.permissions.length > 4 && (
+                    {getRolePermissionIds(role).length > 4 && (
                       <Badge variant="outline" className="text-xs">
-                        +{role.permissions.length - 4} more
+                        +{getRolePermissionIds(role).length - 4} more
                       </Badge>
                     )}
                   </div>
@@ -887,15 +918,15 @@ export default function UserManagementPage() {
             <div className="space-y-3">
               <Label>Permissions</Label>
               <div className="space-y-3 border rounded-lg p-3">
-                {ALL_PERMISSIONS.map((perm) => (
+                {permissions.map((perm) => (
                   <div
                     key={perm.id}
                     className="flex items-start space-x-3"
                   >
                     <Checkbox
                       id={perm.id}
-                      checked={roleForm.permissions.includes(perm.id)}
-                      onCheckedChange={() => togglePermission(perm.id)}
+                      checked={roleForm.permissions.some((p: any) => p.id === perm.id)}
+                      onCheckedChange={() => togglePermission(perm)}
                     />
                     <div className="grid gap-0.5 leading-none">
                       <label
