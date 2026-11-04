@@ -246,7 +246,7 @@ export default function UserManagementPage() {
         </Card>
       </div>
     )
-  }
+  } 
 
   // ---------- Helpers ----------
   const getRoleName = (roleId: string) =>
