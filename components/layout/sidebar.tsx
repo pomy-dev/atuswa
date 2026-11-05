@@ -1,92 +1,50 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
-import { UserRole } from '@/lib/types'
-import {
-  LayoutDashboard,
-  Users,
-  UserCog,
-  DollarSign,
-  Briefcase,
-  Calendar,
-  LifeBuoy,
-  FileText,
-  Settings,
-  Building2,
-  LogOut
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { LogOut } from 'lucide-react'
+import { menuItems, cn } from '@/lib/constants'
+import { getAccessesByRoleName } from "@/lib/utils";
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 
 export function Sidebar() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
+  const [userAccesses, setUserAccesses] = useState<string[]>([])
 
-  const menuItems = [
-    {
-      label: 'Overview',
-      href: '/dashboard',
-      icon: LayoutDashboard,
-      roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.TREASURER, UserRole.PROJECT_COORDINATOR, UserRole.EVENTS_MANAGER]
-    },
-    {
-      label: 'Branches',
-      href: '/branches',
-      icon: Building2,
-      roles: [UserRole.SECRETARY_GENERAL]
-    },
-    {
-      label: 'Users',
-      href: '/board',
-      icon: UserCog,
-      roles: [UserRole.SECRETARY_GENERAL]
-    },
-    {
-      label: 'Tucoswa Affiliates',
-      href: '/members',
-      icon: Users,
-      roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN]
-    },
-    {
-      label: 'Financial',
-      href: '/financial',
-      icon: DollarSign,
-      roles: [UserRole.SECRETARY_GENERAL, UserRole.TREASURER]
-    },
-    {
-      label: 'Projects',
-      href: '/projects',
-      icon: Briefcase,
-      roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.PROJECT_COORDINATOR, UserRole.TREASURER]
-    },
-    {
-      label: 'Events',
-      href: '/events',
-      icon: Calendar,
-      roles: [UserRole.SECRETARY_GENERAL, UserRole.EVENTS_MANAGER, UserRole.BRANCH_ADMIN, UserRole.TREASURER]
-    },
-    {
-      label: 'Grievances',
-      href: '/helpdesk',
-      icon: LifeBuoy,
-      roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.TREASURER]
-    },
-    {
-      label: 'E-Filing',
-      href: '/e-filing',
-      icon: FileText,
-      roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.PROJECT_COORDINATOR, UserRole.EVENTS_MANAGER, UserRole.TREASURER]
-    },
-    {
-      label: 'Settings',
-      href: '/settings',
-      icon: Settings,
-      roles: [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.TREASURER, UserRole.PROJECT_COORDINATOR, UserRole.EVENTS_MANAGER]
+  useEffect(() => {
+    const fetchUserAccesses = async () => {
+      if (user?.role) {
+        try {
+          const accesses = await getAccessesByRole(user?.role)
+          if (accesses) {
+            setUserAccesses(accesses)
+          }
+
+        } catch (error) {
+          console.error('Error fetching user accesses:', error)
+        }
+      }
     }
-  ]
 
-  const visibleItems = menuItems.filter(item => !user || item.roles.includes(user.role))
+    void fetchUserAccesses()
+  }, [user?.role])
+
+  const getAccessesByRole = async (roleName: string) => {
+    if (!roleName) return []
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase) throw new Error('Supabase is not configured.')
+
+    const { data: { session }, error } = await supabase.auth.getSession()
+    if (error) throw error
+    if (!session) return
+
+    return await getAccessesByRoleName(supabase, session, roleName)
+  }
+
+  const visibleItems = menuItems.filter(item => item.accesses.some(access => userAccesses.includes(access)))
 
   return (
     <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
@@ -120,7 +78,6 @@ export function Sidebar() {
       <div className="p-4 border-t border-sidebar-border">
         <div className="bg-sidebar-accent/50 rounded-lg p-3 mb-4">
           <p className="text-xs font-semibold text-sidebar-foreground mb-1">Logged in as:</p>
-          {/* <p className="text-sm text-sidebar-foreground font-medium truncate">{user?.name}</p> */}
           <p className="text-xs text-sidebar-foreground/70">{user?.role.toUpperCase()}</p>
         </div>
         <button

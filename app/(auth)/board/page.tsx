@@ -41,7 +41,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/lib/auth-context'
-import { UserRole, Permission, Role } from '@/lib/types'
+import { Permission, Role } from '@/lib/types'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import {
   Plus,
@@ -61,7 +61,8 @@ import {
   Clock,
   KeyRound,
 } from 'lucide-react'
-import { cn, getAllPermissions, createRole, getAllRoles, updateRole, formatLabel } from '@/lib/utils'
+import { getAllPermissions, createRole, getAllRoles, updateRole } from '@/lib/utils'
+import { cn, canSee, formatLabel, menuItems } from '@/lib/constants'
 
 interface AppUser {
   id: string
@@ -180,11 +181,10 @@ export default function UserManagementPage() {
   const [editingRole, setEditingRole] = useState<Role | null>(null)
   const [roleForm, setRoleForm] = useState({
     name: '',
+    accesses: menuItems,
     description: '',
     permissions: [] as Permission[],
   })
-
-  // console.log(roleForm)
 
   useEffect(() => {
     if (!user) return;
@@ -208,9 +208,6 @@ export default function UserManagementPage() {
         setRoles(loadedRoles ?? [])
         setPermissions(loadedPermissions ?? [])
       }
-
-      console.log('Loaded roles:', loadedRoles)
-      console.log('Loaded permissions:', loadedPermissions)
     }
 
     void loadRolesAndPermissions().catch((error: unknown) => {
@@ -235,6 +232,12 @@ export default function UserManagementPage() {
       const id = permissionRecord.id ?? permissionRecord.permission_id
       return typeof id === 'string' ? [id] : []
     })
+
+  const getRoleAccesses = (role: Role): string[] => {
+    const menuItemLabels = menuItems.map(item => item.label)
+    const roleAcesses = menuItemLabels.filter(label => role.accesses?.includes(label))
+    return roleAcesses
+  }
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
@@ -347,20 +350,23 @@ export default function UserManagementPage() {
   // ---------- Role actions ----------
   const openAddRole = () => {
     setEditingRole(null)
-    setRoleForm({ name: '', description: '', permissions: [] })
+    setRoleForm({ name: '', accesses: [], description: '', permissions: [] })
     setRoleSheetOpen(true)
   }
 
   const openEditRole = (role: Role) => {
     const selectedPermissionIds = new Set(getRolePermissionIds(role))
+    const selectedAccess = new Set(getRoleAccesses(role))
     setEditingRole(role)
     setRoleForm({
       name: role.name,
+      accesses: menuItems.filter(item => selectedAccess.has(item.label)),
       description: role.description ?? '',
       permissions: permissions.filter((permission) =>
         selectedPermissionIds.has(permission.id)
       ),
     })
+    console.log('Editing role:', role)
     setRoleSheetOpen(true)
   }
 
@@ -378,6 +384,7 @@ export default function UserManagementPage() {
       const rolePayload: Role = {
         id: editingRole.id,
         name: roleForm.name,
+        accesses: roleForm.accesses.map(item => item.label),
         description: roleForm.description,
         permissions: roleForm.permissions.map((p) => p.id),
         createdAt: editingRole.createdAt
@@ -391,6 +398,7 @@ export default function UserManagementPage() {
               ? {
                 ...role,
                 name: roleForm.name,
+                accesses: roleForm.accesses.map(item => item.label),
                 description: roleForm.description,
                 permissions: roleForm.permissions.map((p) => p.id),
               }
@@ -402,6 +410,7 @@ export default function UserManagementPage() {
       const rolePayload: Role = {
         id: `role_${Date.now()}`,
         name: roleForm.name,
+        accesses: roleForm.accesses.map(item => item.label),
         description: roleForm.description,
         permissions: roleForm.permissions.map((p) => p.id),
         createdAt: new Date().toISOString(),
@@ -431,8 +440,21 @@ export default function UserManagementPage() {
     });
   };
 
+  const toggleAccess = (accessToToggle: string) => {
+    setRoleForm((prev) => {
+      const isSelected = prev.accesses.some((item: any) => item.label === accessToToggle);
+
+      return {
+        ...prev,
+        accesses: isSelected
+          ? prev.accesses.filter((item: any) => item.label !== accessToToggle)
+          : [...prev.accesses, menuItems.find(item => item.label === accessToToggle)!],
+      };
+    });
+  };
+
   // Access control (adjust as needed)
-  if (user?.role !== UserRole.SECRETARY_GENERAL) {
+  if (canSee(user?.role ?? '', roles.map(role => role.id))) {
     return (
       <div className="p-6">
         <Card>
@@ -872,6 +894,7 @@ export default function UserManagementPage() {
       </Sheet>
 
       {/* ========== Slide-over Sheet for Add / Edit Role ========== */}
+
       <Sheet open={roleSheetOpen} onOpenChange={setRoleSheetOpen}>
         <SheetContent
           side="right"
@@ -913,6 +936,32 @@ export default function UserManagementPage() {
                 placeholder="Optional description"
                 rows={2}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="role">System Access</Label>
+              <div className="space-y-3 border rounded-lg p-3">
+                {menuItems.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-start space-x-3"
+                  >
+                    <Checkbox
+                      id={item.label}
+                      checked={roleForm.accesses.some((a: any) => a.label === item.label)}
+                      onCheckedChange={() => toggleAccess(item.label)}
+                    />
+                    <div className="grid gap-0.5 leading-none">
+                      <label
+                        htmlFor={item.label}
+                        className="text-sm font-medium cursor-pointer"
+                      >
+                        {item.label}
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="space-y-3">

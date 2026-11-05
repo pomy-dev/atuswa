@@ -8,6 +8,7 @@ export interface Permission {
 export interface Role {
   id: string
   name: string
+  accesses: string[]
   description?: string
   permissions: string[]
   createdAt: string
@@ -15,7 +16,7 @@ export interface Role {
 
 // User/Auth Types
 export enum UserRole {
-  SECRETARY_GENERAL = 'secretary_general',
+  SECRETARY_GENERAL = 'sg',
   BRANCH_ADMIN = 'branch_admin',
   TREASURER = 'treasurer',
   PROJECT_COORDINATOR = 'project_coordinator',
@@ -26,7 +27,7 @@ export interface User {
   id: string
   email: string
   name: string
-  role: UserRole
+  role: string
   branchId: string
   photo?: string
   createdAt: Date
