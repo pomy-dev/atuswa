@@ -1,3 +1,17 @@
+// ---------- Users ----------
+export interface AppUser {
+  id: string
+  full_name: string
+  email: string
+  phone?: string
+  branchId?: string
+  role_id: string
+  status: 'active' | 'inactive'
+  createdAt: string
+  lastLogin?: string
+  role?: Role
+}
+
 // ---------- Types ----------
 export interface Permission {
   id: string
@@ -8,7 +22,7 @@ export interface Permission {
 export interface Role {
   id: string
   name: string
-  accesses: string[]
+  accesses?: string[]
   description?: string
   permissions: string[]
   createdAt: string

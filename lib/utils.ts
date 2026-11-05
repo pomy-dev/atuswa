@@ -1,6 +1,5 @@
-
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
-import { Permission, Role } from './types'
+import { Permission, Role, AppUser } from './types'
 
 export async function getAllPermissions(client: SupabaseClient, session: Session | null) {
   if (!session?.user) return null
@@ -108,4 +107,198 @@ export async function getAccessesByRoleName(client: SupabaseClient, session: Ses
   const accesses: string[] = data.map((access: any) => access);
 
   return accesses;
+}
+
+export async function createUserAccount(client: SupabaseClient, session: Session | null, payload: {
+  full_name: string
+  email: string
+  phone?: string
+  role_id: string
+  branch_id?: string
+  photo_url?: string | null
+}) {
+  if (!session?.user) return null
+
+  const { data, error } = await client.functions.invoke(
+    "create-user-account",
+    {
+      body: payload,
+    }
+  );
+
+  if (error) {
+    console.error("Edge Function error:", error);
+
+    // Extract the actual response from Supabase
+    if (error.context instanceof Response) {
+      const errorDetails = await error.context.json();
+
+      console.error("Actual server error:", errorDetails);
+
+      throw new Error(
+        errorDetails.message || "Unable to create user account."
+      );
+    }
+
+    throw new Error(error.message);
+  }
+
+  if (!data?.success) {
+    throw new Error(
+      data?.message || "Unable to create user account."
+    );
+  }
+
+  console.log("User created successfully:", data.user);
+
+  return data.user;
+}
+
+export async function getAllUsersWithRoles(client: SupabaseClient, session: Session | null) {
+  if (!session?.user) return null
+  const { data, error } = await client
+    .rpc('get_profiles_with_roles');
+
+  if (error) throw new Error(`Unable to load users with roles: ${error.message}`)
+
+  const users: AppUser[] = data.map((user: any) => ({
+    id: user.id,
+    full_name: user.full_name,
+    email: user.email,
+    phone: user.phone,
+    role_id: user.role_id,
+    status: user.status,
+    createdAt: user.created_at,
+    lastLogin: user.last_login ?? undefined,
+    role: user.role_id ? {
+      id: user.role_id,
+      name: user.role?.role_name,
+      permissions: user.role?.permissions ?? [],
+    } : undefined
+  }));
+
+  console.log("Users", users)
+
+  return users;
+}
+
+export async function getUserById(client: SupabaseClient, session: Session | null, userId: string) {
+  if (!session?.user) return null
+  const { data, error } = await client
+    .rpc('get_profiles_with_roles', { p_profile_id: userId });
+
+  if (error) throw new Error(`Unable to load the user: ${error.message}`)
+
+  if (!data || data.length === 0) return null
+
+  const userData = data[0];
+
+  const user: AppUser = {
+    id: userData.id,
+    full_name: userData.full_name,
+    email: userData.email,
+    role_id: userData.role_id,
+    status: userData.status,
+    createdAt: userData.created_at,
+    lastLogin: userData.last_login ?? undefined,
+    role: userData.role_id ? {
+      id: userData.role_id,
+      name: userData.role?.role_name,
+      permissions: userData.role?.permissions ?? [],
+      createdAt: userData.role?.created_at
+    } : undefined
+  };
+
+  return user;
+}
+
+export async function updateUserAccount(client: SupabaseClient, session: Session | null, payload: {
+  user_id: string
+  full_name: string
+  email: string
+  phone: string
+  role_id: string
+  branch_id?: string
+  photo_url?: string | null
+  status: string
+}) {
+  if (!session?.user) return null
+
+  const { data, error } = await client.functions.invoke(
+    "update-user-account",
+    {
+      body: payload,
+    }
+  );
+
+  if (error) throw new Error(`Unable to update user account: ${error.message}`)
+
+  return data.user;
+}
+
+export async function resendInvitation(client: SupabaseClient, session: Session | null, profileId: string) {
+  if (!session?.user) return null;
+
+  const { data, error } = await client.functions.invoke(
+    "resend-user-invitation",
+    {
+      body: {
+        profile_id: profileId,
+      },
+      headers: {
+        Authorization: `Bearer ${session?.access_token}`,
+      },
+    }
+  );
+
+  if (error) {
+    let message = error.message;
+
+    if (error.context instanceof Response) {
+      const response = await error.context.json();
+      message = response.error || message;
+    }
+
+    throw new Error(message);
+  }
+
+  if (!data?.success) {
+    throw new Error(data?.error || "Could not resend invitation.");
+  }
+
+  return data;
+}
+
+export async function deleteUserAccount(client: SupabaseClient, session: Session | null, profileId: string) {
+
+  const { data, error } = await client.functions.invoke(
+    "delete-user-account",
+    {
+      body: {
+        profile_id: profileId,
+      },
+      headers: {
+        Authorization: `Bearer ${session?.access_token}`,
+      },
+    }
+  );
+
+  if (error) {
+    let message = error.message;
+
+    if (error.context instanceof Response) {
+      const response = await error.context.json();
+      message = response.error || message;
+    }
+
+    throw new Error(message);
+  }
+
+  if (!data?.success) {
+    throw new Error(
+      data?.error || "Failed to delete user account."
+    );
+  }
+
+  return data;
 }

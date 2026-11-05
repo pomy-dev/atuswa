@@ -30,6 +30,22 @@ export const formatLabel = (value: string | null | undefined) => {
     .join(' ');
 };
 
+export const permissions: Record<string, string> = {
+  'read': 'Read',
+  'write': 'Write',
+  'delete': 'Delete',
+  'activate': 'Activate',
+  'deactivate': 'Deactivate',
+  'archive': 'Archive',
+  'import': 'Import',
+  'export': 'Export',
+  'generate.reports': 'Generate Reports',
+  'configure.users': 'Configure Users',
+  'configure.roles': 'Configure Roles',
+  'settings.edit': 'Edit Settings',
+  'transfers': 'Transfers',
+}
+
 export const menuItems = [
   {
     label: 'Overview',

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
@@ -41,7 +42,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/lib/auth-context'
-import { Permission, Role } from '@/lib/types'
+import { Permission, Role, AppUser } from '@/lib/types'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import {
   Plus,
@@ -51,7 +52,7 @@ import {
   Eye,
   Pencil,
   Key,
-  FileDown,
+  FileDown, RotateCcwKey,
   Trash2,
   Filter,
   Calendar,
@@ -61,18 +62,13 @@ import {
   Clock,
   KeyRound,
 } from 'lucide-react'
-import { getAllPermissions, createRole, getAllRoles, updateRole } from '@/lib/utils'
+import {
+  getAllPermissions, createRole, getAllRoles, updateRole,
+  getAllUsersWithRoles, createUserAccount, updateUserAccount,
+  resendInvitation, deleteUserAccount
+} from '@/lib/utils'
 import { cn, canSee, formatLabel, menuItems } from '@/lib/constants'
-
-interface AppUser {
-  id: string
-  fullName: string
-  email: string
-  roleId: string
-  status: 'active' | 'inactive'
-  createdAt: string
-  lastLogin?: string
-}
+import { FullScreenLoader } from '@/components/fullScreenLoader'
 
 interface ActivityLogEntry {
   id: string
@@ -83,36 +79,6 @@ interface ActivityLogEntry {
   timestamp: string
   ip?: string
 }
-
-const INITIAL_USERS: AppUser[] = [
-  {
-    id: 'u1',
-    fullName: 'Jane Doe',
-    email: 'jane.doe@union.org',
-    roleId: 'role_sg',
-    status: 'active',
-    createdAt: '2024-01-20T08:00:00Z',
-    lastLogin: '2025-11-01T18:22:00Z',
-  },
-  {
-    id: 'u2',
-    fullName: 'John Smith',
-    email: 'john.smith@union.org',
-    roleId: 'role_admin',
-    status: 'active',
-    createdAt: '2024-03-12T11:15:00Z',
-    lastLogin: '2025-10-28T09:41:00Z',
-  },
-  {
-    id: 'u3',
-    fullName: 'Maria Garcia',
-    email: 'maria.g@union.org',
-    roleId: 'role_member',
-    status: 'inactive',
-    createdAt: '2024-05-05T16:45:00Z',
-    lastLogin: '2025-08-14T13:00:00Z',
-  },
-]
 
 const INITIAL_LOGS: ActivityLogEntry[] = [
   {
@@ -157,7 +123,7 @@ export default function UserManagementPage() {
   // Data state (replace localStorage / API calls as needed)
   const [roles, setRoles] = useState<Role[]>([])
   const [permissions, setPermissions] = useState<Permission[]>([])
-  const [users, setUsers] = useState<AppUser[]>(INITIAL_USERS)
+  const [users, setUsers] = useState<AppUser[]>([])
   const [logs] = useState<ActivityLogEntry[]>(INITIAL_LOGS)
 
   // UI state
@@ -172,8 +138,9 @@ export default function UserManagementPage() {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
+    phone: '',
     roleId: '',
-    status: 'active' as 'active' | 'inactive',
+    status: 'inactive' as 'active' | 'inactive',
   })
 
   // Role form state
@@ -185,6 +152,9 @@ export default function UserManagementPage() {
     description: '',
     permissions: [] as Permission[],
   })
+
+  const [saving, setSaving] = useState(false)
+  const [removing, setRemoving] = useState(false)
 
   useEffect(() => {
     if (!user) return;
@@ -210,8 +180,24 @@ export default function UserManagementPage() {
       }
     }
 
+    const loadUsers = async () => {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) throw error
+      if (!session) return
+      const loadedUsers = await getAllUsersWithRoles(supabase, session)
+
+      if (!cancelled) {
+        setUsers(loadedUsers ?? [])
+      }
+    }
+
     void loadRolesAndPermissions().catch((error: unknown) => {
       console.error('Unable to load roles and permissions:', error)
+    })
+    void loadUsers().catch((error: unknown) => {
+      console.error('Unable to load users:', error)
     })
 
     return () => {
@@ -243,9 +229,9 @@ export default function UserManagementPage() {
     return users.filter((u) => {
       const matchesSearch =
         !searchQuery ||
-        u.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        getRoleName(u.roleId).toLowerCase().includes(searchQuery.toLowerCase())
+        getRoleName(u.role_id).toLowerCase().includes(searchQuery.toLowerCase())
 
       const matchesStatus =
         statusFilter === 'all' || u.status === statusFilter
@@ -273,6 +259,7 @@ export default function UserManagementPage() {
     setFormData({
       fullName: '',
       email: '',
+      phone: '',
       roleId: roles[0]?.id ?? '',
       status: 'active',
     })
@@ -282,57 +269,144 @@ export default function UserManagementPage() {
   const openEditUser = (u: AppUser) => {
     setEditingUser(u)
     setFormData({
-      fullName: u.fullName,
+      fullName: u.full_name,
       email: u.email,
-      roleId: u.roleId,
+      phone: u.phone ?? '',
+      roleId: u.role_id,
       status: u.status,
     })
     setSheetOpen(true)
   }
 
-  const handleSaveUser = () => {
+  const handleSaveUser = useCallback(async () => {
     if (!formData.fullName.trim() || !formData.email.trim()) return
 
-    if (editingUser) {
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === editingUser.id
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase) throw new Error('Supabase is not configured.')
+
+    const { data: { session }, error } = await supabase.auth.getSession()
+    if (error) throw error
+    if (!session) throw new Error('You must be signed in to manage roles.')
+
+    try {
+      setSaving(true)
+      if (editingUser) {
+        const userPayload = {
+          user_id: editingUser?.id,
+          full_name: formData.fullName,
+          email: formData.email,
+          phone: formData.phone,
+          role_id: formData.roleId,
+          status: formData.status
+        }
+
+        const updatedUser = await updateUserAccount(supabase, session, userPayload)
+
+        if (updatedUser) {
+          setUsers((prev) => prev.map((u) => u.id === editingUser.id
             ? {
               ...u,
               fullName: formData.fullName,
               email: formData.email,
+              phone: formData.phone || undefined,
               roleId: formData.roleId,
               status: formData.status,
             }
             : u
-        )
-      )
-    } else {
-      const newUser: AppUser = {
-        id: `u_${Date.now()}`,
-        fullName: formData.fullName,
-        email: formData.email,
-        roleId: formData.roleId,
-        status: formData.status,
-        createdAt: new Date().toISOString(),
-      }
-      setUsers((prev) => [...prev, newUser])
-    }
-    setSheetOpen(false)
-  }
+          )
+          )
 
-  const handleDeleteUser = (id: string) => {
-    if (confirm('Are you sure you want to delete this user?')) {
-      setUsers((prev) => prev.filter((u) => u.id !== id))
+          toast.success("User updated successfully")
+        }
+
+      } else {
+        const newUser: AppUser = {
+          id: `u_${Date.now()}`,
+          full_name: formData.fullName,
+          email: formData.email,
+          phone: formData.phone,
+          role_id: formData.roleId,
+          status: formData.status,
+          createdAt: new Date().toISOString(),
+        }
+
+        const createdUser = await createUserAccount(supabase, session, newUser)
+
+        if (createdUser) { setUsers((prev) => [...prev, newUser]); toast.success("Account created.") }
+      }
+      setSheetOpen(false)
+    } catch (err) {
+      toast.error(`Encountered error: ${err}`)
+      throw new Error(`Encountered error: ${err}`)
+    } finally {
+      setSaving(false)
     }
-  }
+
+
+  }, [editingUser, formData]);
+
+  const handleResendInvitation = useCallback(async (user: any) => {
+
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase) throw new Error('Supabase is not configured.')
+
+    const { data: { session }, error } = await supabase.auth.getSession()
+    if (error) throw error
+    if (!session) throw new Error('You must be signed in to manage roles.')
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error("Your session has expired. Please log in again.");
+      }
+
+      await resendInvitation(
+        supabase,
+        session,
+        user.id
+      );
+
+      toast.success("Invitation email sent successfully.");
+
+    } catch (error: any) {
+      toast.error(error.message || "Failed to resend invitation.");
+    }
+  }, []);
+
+  const handleDeleteUser = useCallback(async (id: string) => {
+    if (!id) return
+
+    if (confirm('Are you sure you want to delete this user?')) {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) throw error
+      if (!session) throw new Error('You must be signed in to manage roles.')
+
+      try {
+        setRemoving(true)
+        const res = await deleteUserAccount(supabase, session, id)
+
+        res && setUsers((prev) => prev.filter((u) => u.id !== id))
+      } catch (error) {
+        toast.error(`Failed to remove account. ${error}`)
+        throw new Error(`Encountered error: ${error}`)
+      } finally {
+        setRemoving(false)
+      }
+    }
+  }, [])
 
   const handleExportUsers = () => {
     // Simple CSV export example
     const headers = ['Role', 'Full Name', 'Email', 'Date Created', 'Status']
     const rows = filteredUsers.map((u) => [
-      getRoleName(u.roleId),
-      u.fullName,
+      getRoleName(u.role_id),
+      u.full_name,
       u.email,
       new Date(u.createdAt).toLocaleDateString(),
       u.status,
@@ -380,47 +454,54 @@ export default function UserManagementPage() {
     if (error) throw error
     if (!session) throw new Error('You must be signed in to manage roles.')
 
-    if (editingRole) {
-      const rolePayload: Role = {
-        id: editingRole.id,
-        name: roleForm.name,
-        accesses: roleForm.accesses.map(item => item.label),
-        description: roleForm.description,
-        permissions: roleForm.permissions.map((p) => p.id),
-        createdAt: editingRole.createdAt
-      }
-      const updatedRole = await updateRole(supabase, session, rolePayload)
+    try {
+      setSaving(true)
+      if (editingRole) {
+        const rolePayload: Role = {
+          id: editingRole.id,
+          name: roleForm.name,
+          accesses: roleForm.accesses.map(item => item.label),
+          description: roleForm.description,
+          permissions: roleForm.permissions.map((p) => p.id),
+          createdAt: editingRole.createdAt
+        }
+        const updatedRole = await updateRole(supabase, session, rolePayload)
 
-      if (updatedRole) {
-        setRoles((prev) =>
-          prev.map((role) =>
-            role.id === editingRole.id
-              ? {
-                ...role,
-                name: roleForm.name,
-                accesses: roleForm.accesses.map(item => item.label),
-                description: roleForm.description,
-                permissions: roleForm.permissions.map((p) => p.id),
-              }
-              : role
+        if (updatedRole) {
+          setRoles((prev) =>
+            prev.map((role) =>
+              role.id === editingRole.id
+                ? {
+                  ...role,
+                  name: roleForm.name,
+                  accesses: roleForm.accesses.map(item => item.label),
+                  description: roleForm.description,
+                  permissions: roleForm.permissions.map((p) => p.id),
+                }
+                : role
+            )
           )
-        )
+        }
+      } else {
+        const rolePayload: Role = {
+          id: `role_${Date.now()}`,
+          name: roleForm.name,
+          accesses: roleForm.accesses.map(item => item.label),
+          description: roleForm.description,
+          permissions: roleForm.permissions.map((p) => p.id),
+          createdAt: new Date().toISOString(),
+        }
+        const newRole = await createRole(supabase, session, rolePayload);
+        if (newRole) {
+          setRoles((prevRoles) => [...prevRoles, newRole])
+        };
       }
-    } else {
-      const rolePayload: Role = {
-        id: `role_${Date.now()}`,
-        name: roleForm.name,
-        accesses: roleForm.accesses.map(item => item.label),
-        description: roleForm.description,
-        permissions: roleForm.permissions.map((p) => p.id),
-        createdAt: new Date().toISOString(),
-      }
-      const newRole = await createRole(supabase, session, rolePayload);
-      if (newRole) {
-        setRoles((prevRoles) => [...prevRoles, newRole])
-      };
+      setRoleSheetOpen(false)
+    } catch (error) {
+      throw new Error(`Encountered error: ${error}`)
+    } finally {
+      setSaving(false)
     }
-    setRoleSheetOpen(false)
   }, [editingRole, roleForm])
 
   const togglePermission = (permissionToToggle: Permission) => {
@@ -616,6 +697,7 @@ export default function UserManagementPage() {
                     <TableHead>Role</TableHead>
                     <TableHead>Full Name</TableHead>
                     <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
                     <TableHead>Date Created</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
@@ -632,10 +714,11 @@ export default function UserManagementPage() {
                     filteredUsers.map((u) => (
                       <TableRow key={u.id}>
                         <TableCell>
-                          <Badge variant="outline">{getRoleName(u.roleId)}</Badge>
+                          <Badge variant="outline">{getRoleName(u.role_id)}</Badge>
                         </TableCell>
-                        <TableCell className="font-medium">{u.fullName}</TableCell>
+                        <TableCell className="font-medium">{u.full_name}</TableCell>
                         <TableCell>{u.email}</TableCell>
+                        <TableCell>{u.phone}</TableCell>
                         <TableCell>
                           {new Date(u.createdAt).toLocaleDateString()}
                         </TableCell>
@@ -683,7 +766,7 @@ export default function UserManagementPage() {
                                   const url = URL.createObjectURL(blob)
                                   const a = document.createElement('a')
                                   a.href = url
-                                  a.download = `${u.fullName.replace(/\s+/g, '_')}_details.json`
+                                  a.download = `${u.full_name.replace(/\s+/g, '_')}_details.json`
                                   a.click()
                                   URL.revokeObjectURL(url)
                                 }}
@@ -691,6 +774,14 @@ export default function UserManagementPage() {
                                 <FileDown className="w-4 h-4 mr-2" />
                                 Export Details
                               </DropdownMenuItem>
+                              {u?.status === "inactive" && (
+                                <DropdownMenuItem
+                                  onClick={() => handleResendInvitation(u)}
+                                >
+                                  <RotateCcwKey className="w-4 h-4 mr-2" />
+                                  Resend Invite
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
@@ -780,7 +871,7 @@ export default function UserManagementPage() {
                     className="flex items-center justify-between p-3 rounded-lg border bg-card"
                   >
                     <div>
-                      <p className="font-medium text-sm">{u.fullName}</p>
+                      <p className="font-medium text-sm">{u.full_name}</p>
                       <p className="text-xs text-muted-foreground">{u.email}</p>
                     </div>
                     <div className="text-right">
@@ -843,9 +934,22 @@ export default function UserManagementPage() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="phone">Phone</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={formData.phone}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, phone: e.target.value }))
+                }
+                placeholder="+268 0000 0000"
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
               <Select
-                value={formData.roleId}
+                value={roles.find((role) => role.id === formData.roleId)?.name}
                 onValueChange={(val) =>
                   setFormData((prev) => ({ ...prev, roleId: val ?? '' }))
                 }
@@ -886,15 +990,14 @@ export default function UserManagementPage() {
             <Button variant="outline" onClick={() => setSheetOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveUser}>
-              {editingUser ? 'Save Changes' : 'Create User'}
+            <Button onClick={handleSaveUser} disabled={saving}>
+              {editingUser ? saving ? 'Saving...' : 'Save Changes' : saving ? 'Creating...' : 'Create User'}
             </Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
 
       {/* ========== Slide-over Sheet for Add / Edit Role ========== */}
-
       <Sheet open={roleSheetOpen} onOpenChange={setRoleSheetOpen}>
         <SheetContent
           side="right"
@@ -1000,12 +1103,14 @@ export default function UserManagementPage() {
             <Button variant="outline" onClick={() => setRoleSheetOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveRole}>
-              {editingRole ? 'Save Role' : 'Create Role'}
+            <Button onClick={handleSaveRole} disabled={saving}>
+              {editingRole ? saving ? 'Saving...' : 'Save Role' : saving ? 'Creating...' : 'Create Role'}
             </Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <FullScreenLoader isLoading={removing} />
     </div>
   );
 }
