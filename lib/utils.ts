@@ -177,8 +177,6 @@ export async function getAllUsersWithRoles(client: SupabaseClient, session: Sess
     } : undefined
   }));
 
-  console.log("Users", users)
-
   return users;
 }
 

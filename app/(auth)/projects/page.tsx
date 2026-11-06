@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,9 +8,12 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
-import { UserRole, Project, ProjectStatus } from '@/lib/types'
+import { UserRole, Project, ProjectStatus, Role, Permission } from '@/lib/types'
 import { Plus, Trash2, Calendar } from 'lucide-react'
+import { canSee } from '@/lib/constants'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { getAllRoles, getAllPermissions } from '@/lib/utils'
 import { AddProjectModal } from '@/components/modals/add-project-modal'
 
 export default function ProjectsPage() {
@@ -29,8 +32,44 @@ export default function ProjectsPage() {
     status: ProjectStatus.PLANNING
   })
 
+  const [roles, setRoles] = useState<Role[]>([])
+  const [permissions, setPermissions] = useState<Permission[]>([])
+
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false
+
+    const loadRolesAndPermissions = async () => {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) throw error
+      if (!session) return
+
+      const [loadedRoles, loadedPermissions] = await Promise.all([
+        getAllRoles(supabase, session),
+        getAllPermissions(supabase, session),
+      ])
+
+      if (!cancelled) {
+        setRoles(loadedRoles ?? [])
+        setPermissions(loadedPermissions ?? [])
+      }
+    }
+
+    void loadRolesAndPermissions().catch((error: unknown) => {
+      console.error('Unable to load roles and permissions:', error)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user]);
+
   // Can only access if authorized
-  if (![UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.PROJECT_COORDINATOR].includes(user?.role!)) {
+  if (canSee(user?.role ?? '', roles.map(role => role.id))) {
     return (
       <div className="p-6">
         <Card>

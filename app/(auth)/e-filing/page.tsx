@@ -9,9 +9,18 @@ import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
-import { UserRole, EFileFolder, EFile } from '@/lib/types'
+import { Role, EFileFolder, EFile, Permission } from '@/lib/types'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { menuItems, canSee } from '@/lib/constants'
+import {
+  getAllPermissions, getAllRoles, getUserById
+} from '@/lib/utils'
 import { saveFile, deleteFile, getFolderFiles } from "@/utils/file-storage";
-import { Plus, Folder, File, FileArchive, FileCode, FileImage, FileText, FileSpreadsheet, Trash2, FolderPlus, Download, AlertCircle } from 'lucide-react'
+import {
+  Plus, Folder, File, FileArchive, FileCode, FileImage,
+  FileText, FileSpreadsheet, Trash2, FolderPlus, Download,
+  AlertCircle
+} from 'lucide-react'
 
 export default function EFilingPage() {
   const { user } = useAuth()
@@ -25,20 +34,41 @@ export default function EFilingPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [roles, setRoles] = useState<Role[]>([])
+  const [permissions, setPermissions] = useState<Permission[]>([])
 
-  // Can only access if authorized
-  if (![UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN, UserRole.PROJECT_COORDINATOR, UserRole.TREASURER].includes(user?.role!)) {
-    return (
-      <div className="p-6">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground">You don&apos;t have permission to access e-filing.</p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false
+
+    const loadRolesAndPermissions = async () => {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) throw error
+      if (!session) return
+
+      const [loadedRoles, loadedPermissions] = await Promise.all([
+        getAllRoles(supabase, session),
+        getAllPermissions(supabase, session),
+      ])
+
+      if (!cancelled) {
+        setRoles(loadedRoles ?? [])
+        setPermissions(loadedPermissions ?? [])
+      }
+    }
+
+    void loadRolesAndPermissions().catch((error: unknown) => {
+      console.error('Unable to load roles and permissions:', error)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!selectedFolder) return;
@@ -50,6 +80,8 @@ export default function EFilingPage() {
 
     load();
   }, [selectedFolder]);
+
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleAddFolder = () => {
     if (!folderName.trim()) return
@@ -192,6 +224,20 @@ export default function EFilingPage() {
 
     return <File className="w-5 h-5 text-gray-500" />;
   };
+
+
+  // Can only access if authorized
+  if (canSee(user?.role ?? '', roles.map(role => role.id))) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-muted-foreground">You don&apos;t have permission to access e-filing.</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   const selectedFolderData = selectedFolder ? folders.find(f => f.id === selectedFolder) : null
   const folderFiles = selectedFolder ? files.filter(f => f.folderId === selectedFolder) : []

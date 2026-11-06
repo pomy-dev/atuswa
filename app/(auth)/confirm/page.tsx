@@ -34,113 +34,6 @@ export default function InvitationConfirmationPage() {
     if (verificationStarted.current) return;
     verificationStarted.current = true;
 
-    // const verifyInvitation = async () => {
-    //   try {
-    //     const supabase = getSupabaseBrowserClient();
-
-    //     if (!supabase) {
-    //       throw new Error("Supabase is not configured.");
-    //     }
-
-
-    //     const params = new URLSearchParams(
-    //       window.location.search
-    //     );
-
-    //     // Read invitation parameters from the URL fragment
-    //     const hashParams = new URLSearchParams(
-    //       window.location.hash.substring(1)
-    //     );
-
-    //     // Support refreshing after successful verification
-    //     if (params.get("verified") === "1") {
-    //       const {
-    //         data: { session },
-    //       } = await supabase.auth.getSession();
-
-    //       if (!session) {
-    //         throw new Error(
-    //           "Your invitation session has expired. Please request a new invitation."
-    //         );
-    //       }
-
-    //       setVerified(true);
-    //       return;
-    //     }
-
-    //     const tokenHash = params.get("token_hash");
-    //     const queryType = params.get("type");
-    //     const hashType = hashParams.get("type");
-
-    //     // FLOW 1: Token hash verification
-    //     if (tokenHash && queryType === "invite") {
-    //       const { error: verifyError } =
-    //         await supabase.auth.verifyOtp({
-    //           token_hash: tokenHash,
-    //           type: "invite",
-    //         });
-
-    //       if (verifyError) {
-    //         throw verifyError;
-    //       }
-    //     }
-
-    //     // FLOW 2: Access token verification
-    //     else if (hashType === "invite") {
-    //       // Supabase JS automatically detects the access token
-    //       // in the URL fragment and establishes the session.
-
-    //       const {
-    //         data: { session },
-    //         error: sessionError,
-    //       } = await supabase.auth.getSession();
-
-    //       if (sessionError || !session) {
-    //         throw new Error(
-    //           "Unable to establish your invitation session. Please request a new invitation."
-    //         );
-    //       }
-
-    //       const {
-    //         data: { user },
-    //         error: userError,
-    //       } = await supabase.auth.getUser();
-
-    //       if (userError || !user) {
-    //         throw new Error(
-    //           "Unable to verify the invited user."
-    //         );
-    //       }
-    //     }
-
-    //     // Invalid invitation
-    //     else {
-    //       throw new Error(
-    //         "Invalid invitation link. Please use the invitation email sent to you."
-    //       );
-    //     }
-
-    //     // Remove sensitive authentication tokens from the URL
-    //     window.history.replaceState(
-    //       {},
-    //       "",
-    //       "/confirm?verified=1"
-    //     );
-
-    //     setVerified(true);
-
-    //   } catch (err) {
-    //     setError(
-    //       err instanceof Error
-    //         ? err.message
-    //         : "Unable to verify invitation."
-    //     );
-    //   } finally {
-    //     setLoading(false);
-    //   }
-    // };
-
-
     const verifyInvitation = async () => {
       try {
         const supabase = getSupabaseBrowserClient();
@@ -170,33 +63,47 @@ export default function InvitationConfirmationPage() {
           return;
         }
 
-        const tokenHash = params.get("token_hash");
-        const type = params.get("type");
+        // Read tokens from Supabase invitation URL fragment
+        const hashParams = new URLSearchParams(
+          window.location.hash.substring(1)
+        );
 
-        if (!tokenHash || type !== "invite") {
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
+        const type = hashParams.get("type");
+
+        // Check for Supabase authentication errors
+        const authError = hashParams.get("error_description");
+
+        if (authError) {
+          throw new Error(authError);
+        }
+
+        if (
+          !accessToken ||
+          !refreshToken ||
+          type !== "invite"
+        ) {
           throw new Error(
             "Invalid invitation link. Please use the invitation email sent to you."
           );
         }
 
-        // Explicitly verify the invitation
-        const { data, error: verifyError } =
-          await supabase.auth.verifyOtp({
-            token_hash: tokenHash,
-            type: "invite",
+        // Explicitly establish the invited user's session
+        const { data, error: sessionError } =
+          await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
           });
 
-        if (verifyError) {
-          throw verifyError;
-        }
-
-        if (!data.user || !data.session) {
+        if (sessionError || !data.session || !data.user) {
           throw new Error(
-            "Unable to establish the invited user's session."
+            sessionError?.message ||
+            "Unable to establish your invitation session."
           );
         }
 
-        // Confirm that the authenticated user is the invited user
+        // Verify the authenticated user
         const {
           data: { user: currentUser },
           error: userError,
@@ -208,16 +115,16 @@ export default function InvitationConfirmationPage() {
           currentUser.id !== data.user.id
         ) {
           throw new Error(
-            "Invitation authentication failed. Please request a new invitation."
+            "Unable to verify the invited user."
           );
         }
 
-        console.log("INVITATION VERIFIED:", {
+        console.log("INVITATION SESSION ESTABLISHED:", {
           id: currentUser.id,
           email: currentUser.email,
         });
 
-        // Remove sensitive token from URL
+        // Remove sensitive tokens from the URL
         window.history.replaceState(
           {},
           "",
@@ -227,11 +134,14 @@ export default function InvitationConfirmationPage() {
         setVerified(true);
 
       } catch (err) {
+        console.error("INVITATION VERIFICATION ERROR:", err);
+
         setError(
           err instanceof Error
             ? err.message
             : "Unable to verify invitation."
         );
+
       } finally {
         setLoading(false);
       }

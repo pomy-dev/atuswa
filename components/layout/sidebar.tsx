@@ -44,7 +44,7 @@ export function Sidebar() {
     return await getAccessesByRoleName(supabase, session, roleName)
   }
 
-  const visibleItems = menuItems.filter(item => item.accesses.some(access => userAccesses.includes(access)))
+  const visibleItems = menuItems.filter(item => userAccesses.includes(item.label))
 
   return (
     <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col">

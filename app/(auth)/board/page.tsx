@@ -140,7 +140,7 @@ export default function UserManagementPage() {
     email: '',
     phone: '',
     roleId: '',
-    status: 'inactive' as 'active' | 'inactive',
+    status: 'inactive' as 'inactive' | 'active',
   })
 
   // Role form state
@@ -261,7 +261,7 @@ export default function UserManagementPage() {
       email: '',
       phone: '',
       roleId: roles[0]?.id ?? '',
-      status: 'active',
+      status: 'inactive',
     })
     setSheetOpen(true)
   }
@@ -742,7 +742,7 @@ export default function UserManagementPage() {
                               <MoreVertical className="w-4 h-4" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem
+                              {u.role?.permissions.map(perm => perm === "Read") && <DropdownMenuItem
                                 onClick={() => {
                                   openEditUser(u)
                                 }}
@@ -750,15 +750,14 @@ export default function UserManagementPage() {
                                 <Eye className="w-4 h-4 mr-2" />
                                 View Profile
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openEditUser(u)}>
+                              }
+
+                              {u.role?.permissions.map(perm => perm === "Write") && <DropdownMenuItem onClick={() => openEditUser(u)}>
                                 <Pencil className="w-4 h-4 mr-2" />
                                 Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openEditUser(u)}>
-                                <KeyRound className="w-4 h-4 mr-2" />
-                                Change Permission
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
+                              </DropdownMenuItem>}
+
+                              {u.role?.permissions.map(perm => perm === "Export") && <DropdownMenuItem
                                 onClick={() => {
                                   // Export single user details
                                   const data = JSON.stringify(u, null, 2)
@@ -773,8 +772,9 @@ export default function UserManagementPage() {
                               >
                                 <FileDown className="w-4 h-4 mr-2" />
                                 Export Details
-                              </DropdownMenuItem>
-                              {u?.status === "inactive" && (
+                              </DropdownMenuItem>}
+
+                              {(user?.role?.toLowerCase() === "Secretary General".toLowerCase() && u?.status === "inactive") && (
                                 <DropdownMenuItem
                                   onClick={() => handleResendInvitation(u)}
                                 >
@@ -782,14 +782,15 @@ export default function UserManagementPage() {
                                   Resend Invite
                                 </DropdownMenuItem>
                               )}
+
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem
+                              {user?.role?.toLowerCase() === "Secretary General".toLowerCase() && <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
                                 onClick={() => handleDeleteUser(u.id)}
                               >
                                 <Trash2 className="w-4 h-4 mr-2" />
                                 Delete User
-                              </DropdownMenuItem>
+                              </DropdownMenuItem>}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -1022,6 +1023,7 @@ export default function UserManagementPage() {
                   setRoleForm((prev) => ({ ...prev, name: e.target.value }))
                 }
                 placeholder="e.g. Moderator"
+                disabled={roleForm.name?.toLowerCase() === "Secretary General".toLowerCase()}
               />
             </div>
 

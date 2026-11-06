@@ -12,6 +12,7 @@ import {
   Settings,
   Building2,
 } from 'lucide-react'
+import { User } from '@/lib/types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
