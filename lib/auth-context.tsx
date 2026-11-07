@@ -81,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!profileUser) throw new Error('Supabase did not return an authenticated session.')
     setUser(profileUser)
     setIsLoading(false)
+    return profileUser
   }
 
   const logout = async () => {

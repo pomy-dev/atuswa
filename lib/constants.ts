@@ -12,7 +12,7 @@ import {
   Settings,
   Building2,
 } from 'lucide-react'
-import { User } from '@/lib/types'
+import { Role } from '@/lib/types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -46,6 +46,23 @@ export const permissions: Record<string, string> = {
   'settings.edit': 'Edit Settings',
   'transfers': 'Transfers',
 }
+
+export const getRoleAccesses = (role: Role): string[] => {
+
+  const accesses = (role.accesses ?? []).map((access: any) =>
+    typeof access === "string"
+      ? access
+      : access.access_value
+  );
+
+  const menuItemLabels = menuItems.map((item) => item.label);
+
+  const roleAccesses = menuItemLabels.filter((label) =>
+    accesses.includes(label)
+  );
+
+  return roleAccesses;
+};
 
 export const menuItems = [
   {

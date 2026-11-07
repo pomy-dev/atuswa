@@ -67,7 +67,7 @@ import {
   getAllUsersWithRoles, createUserAccount, updateUserAccount,
   resendInvitation, deleteUserAccount
 } from '@/lib/utils'
-import { cn, canSee, formatLabel, menuItems } from '@/lib/constants'
+import { cn, canSee, formatLabel, menuItems, getRoleAccesses } from '@/lib/constants'
 import { FullScreenLoader } from '@/components/fullScreenLoader'
 
 interface ActivityLogEntry {
@@ -155,6 +155,7 @@ export default function UserManagementPage() {
 
   const [saving, setSaving] = useState(false)
   const [removing, setRemoving] = useState(false)
+  const [sending, setSending] = useState(false)
 
   useEffect(() => {
     if (!user) return;
@@ -218,12 +219,6 @@ export default function UserManagementPage() {
       const id = permissionRecord.id ?? permissionRecord.permission_id
       return typeof id === 'string' ? [id] : []
     })
-
-  const getRoleAccesses = (role: Role): string[] => {
-    const menuItemLabels = menuItems.map(item => item.label)
-    const roleAcesses = menuItemLabels.filter(label => role.accesses?.includes(label))
-    return roleAcesses
-  }
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
@@ -355,6 +350,7 @@ export default function UserManagementPage() {
     if (!session) throw new Error('You must be signed in to manage roles.')
 
     try {
+      setSending(true)
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -373,6 +369,8 @@ export default function UserManagementPage() {
 
     } catch (error: any) {
       toast.error(error.message || "Failed to resend invitation.");
+    } finally {
+      setSending(false);
     }
   }, []);
 
@@ -1112,7 +1110,7 @@ export default function UserManagementPage() {
         </SheetContent>
       </Sheet>
 
-      <FullScreenLoader isLoading={removing} />
+      <FullScreenLoader isLoading={removing || sending} />
     </div>
   );
 }

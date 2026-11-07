@@ -202,11 +202,11 @@ export async function getUserById(client: SupabaseClient, session: Session | nul
     role: userData.role_id ? {
       id: userData.role_id,
       name: userData.role?.role_name,
+      accesses: userData.role?.accesses ?? [],
       permissions: userData.role?.permissions ?? [],
       createdAt: userData.role?.created_at
     } : undefined
   };
-
   return user;
 }
 

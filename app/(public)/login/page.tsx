@@ -9,6 +9,66 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
+import { getUserById } from '@/lib/utils'
+import { getRoleAccesses } from '@/lib/constants'
+import { Role } from '@/lib/types'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+
+async function getUserProfile(userId: string) {
+  const supabase = getSupabaseBrowserClient()
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { data: { session }, error } = await supabase.auth.getSession()
+  if (error) throw error
+  if (!session) return
+  const userProfile = await getUserById(supabase, session, userId)
+
+  return userProfile;
+}
+
+async function getLandingRoute(role?: Role): Promise<string> {
+  if (!role) return '/settings';
+
+  const accesses = getRoleAccesses(role);
+
+  for (const access of accesses) {
+    switch (access) {
+      case 'Overview':
+        return '/dashboard';
+
+      case 'Financial':
+        return '/financial';
+
+      case 'Branches':
+        return '/branches';
+
+      case 'Projects':
+        return '/projects';
+
+      case 'Events':
+        return '/events';
+
+      case 'Grievances':
+        return '/helpdesk';
+
+      case 'E-Filing':
+        return '/e-filing';
+
+      case 'Settings':
+        return '/settings';
+
+      case 'Users':
+        return '/users';
+
+      case 'Tucoswa Affiliates':
+        return '/members';
+
+      default:
+        continue;
+    }
+  }
+
+  return '/settings';
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -24,8 +84,10 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      await login(email, password)
-      router.push('/dashboard')
+      const authenticatedUser = await login(email, password)
+      const profile = await getUserProfile(authenticatedUser.id)
+      const route = await getLandingRoute(profile?.role)
+      router.push(route)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {

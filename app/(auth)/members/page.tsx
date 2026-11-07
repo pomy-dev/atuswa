@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/lib/auth-context'
-import { Affiliate, AffiliateDocument, AffiliateStatus, FinancialStanding, Member, UserRole } from '@/lib/types'
+import { Affiliate, AffiliateDocument, AffiliateStatus, FinancialStanding, Member, UserRole, Role, Permission } from '@/lib/types'
 import { dummyAffiliates, dummyMembers } from '@/lib/dummy-data'
 import { Plus, Trash2, Download, Upload, Printer, Building2, UsersRound, FilePenLine, Archive, Search, CreditCard, FileText, Link2, Bell, BarChart3, CheckCircle2, XCircle, ArrowRightLeft, IdCard, Award, ShieldCheck } from 'lucide-react'
 import { BulkImportModal } from '@/components/modals/bulk-import-modal'
@@ -16,6 +16,7 @@ import { RegisterAffiliateModal, AffiliateDraft } from '@/components/modals/regi
 import { AffiliateAction, AffiliateActionsModal } from '@/components/modals/affiliate-actions-modal'
 import { MemberRecordModal } from '@/components/modals/member-record-modal'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
+import { canSee } from '@/lib/constants'
 
 const statusStyles: Record<AffiliateStatus, string> = { Active: 'bg-emerald-100 text-emerald-800', Provisional: 'bg-amber-100 text-amber-800', Suspended: 'bg-orange-100 text-orange-800', Expelled: 'bg-red-100 text-red-800', Withdrawn: 'bg-slate-100 text-slate-700' }
 const financialStyles: Record<FinancialStanding, string> = { 'Good standing': 'bg-emerald-100 text-emerald-800', Arrears: 'bg-amber-100 text-amber-800', Suspended: 'bg-red-100 text-red-800' }
@@ -25,7 +26,6 @@ const textDownload = (filename: string, content: string, type = 'text/plain') =>
 
 export default function MembersPage() {
   const { user } = useAuth()
-  const canManage = [UserRole.SECRETARY_GENERAL, UserRole.BRANCH_ADMIN].includes(user?.role!)
   const [view, setView] = useState<'affiliates' | 'workers'>('affiliates')
   const [affiliates, setAffiliates] = useState<Affiliate[]>([])
   const [members, setMembers] = useState<Member[]>([])
@@ -45,6 +45,9 @@ export default function MembersPage() {
   const [filterGender, setFilterGender] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+
+  const [roles, setRoles] = useState<Role[]>([])
+  const [permissions, setPermissions] = useState<Permission[]>([])
   const perPage = 10
 
   useEffect(() => {
@@ -56,7 +59,15 @@ export default function MembersPage() {
     setTransferRequests(JSON.parse(localStorage.getItem('memberTransferRequests') || '[]').filter((request: any) => request.status === 'Pending'))
   }, [user?.branchId, user?.role])
 
-  if (!canManage) return <div className="p-6"><Card><CardContent className="pt-6"><p className="text-muted-foreground">Only Secretary General and Branch Admins can manage affiliates and members.</p></CardContent></Card></div>
+  if (canSee(user?.role ?? '', roles.map(role => role.id))) return (
+    <div className="p-6">
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-muted-foreground">Only Secretary General and Branch Admins can manage affiliates and members.</p>
+        </CardContent>
+      </Card>
+    </div>
+  )
 
   const filteredAffiliates = useMemo(() => affiliates.filter(affiliate => { const query = searchTerm.toLowerCase(); return (!query || affiliate.officialName.toLowerCase().includes(query) || affiliate.acronym.toLowerCase().includes(query) || affiliate.affiliateId.toLowerCase().includes(query) || affiliate.sectors.some(sector => sector.toLowerCase().includes(query))) && (!filterStatus || affiliate.status === filterStatus) && (!filterFinancial || affiliate.financialStanding === filterFinancial) }), [affiliates, searchTerm, filterStatus, filterFinancial])
   const filteredMembers = useMemo(() => members.filter(member => { const query = searchTerm.toLowerCase(); return (!query || member.name.toLowerCase().includes(query) || member.memberId.toLowerCase().includes(query) || member.phone.includes(searchTerm)) && (!filterGender || member.gender === filterGender) }), [members, searchTerm, filterGender])
