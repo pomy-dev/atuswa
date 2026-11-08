@@ -12,7 +12,9 @@ import {
   Settings,
   Building2,
 } from 'lucide-react'
-import { Role } from '@/lib/types'
+import { Role, ActivityLogEntry } from '@/lib/types'
+import { createActivityLog } from './utils'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -126,3 +128,24 @@ export const menuItems = [
     accesses: ['Overview', 'Branches', 'Users', 'Tucoswa Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
   }
 ]
+
+export const recordActivityLog = async (action: string, details: string, userId?: string, userName?: string, ip?: string) => {
+  const supabase = getSupabaseBrowserClient()
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { data: { session }, error } = await supabase.auth.getSession()
+  if (error) throw error
+  if (!session) return
+
+  const activityPayload: ActivityLogEntry = {
+    id: `act_${Date.now()}`,
+    userId,
+    action,
+    details,
+    timestamp: `${Date.now()}`,
+    ip
+  }
+
+  // console.log(activityPayload)
+
+  await createActivityLog(supabase, session, activityPayload)
+}

@@ -300,3 +300,41 @@ export async function deleteUserAccount(client: SupabaseClient, session: Session
 
   return data;
 }
+
+export async function createActivityLog(client: SupabaseClient, session: Session | null, activity: {
+  action: string,
+  details?: string,
+  resourceType?: string,
+  resourceId?: string,
+  metadata?: Record<string, any>
+}) {
+  if (!session?.user) return null
+
+  const { data, error } = await client.rpc(
+    'create_activity_log',
+    {
+      p_action: activity.action,
+      p_details: activity.details ?? null,
+      p_resource_type: activity.resourceType ?? null,
+      p_resource_id: activity.resourceId ?? null,
+      p_metadata: activity.metadata ?? {},
+    }
+  );
+
+  if (error) {
+    console.error('Failed to create activity log:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export async function getActivityLogs(client: SupabaseClient, session: Session | null) {
+  if (!session?.user) return null
+
+  const { data, error } = await client.rpc('get_activity_logs');
+
+  if (error) throw new Error(`Encountered error: ${error}`)
+
+  return data;
+}

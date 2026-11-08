@@ -10,14 +10,16 @@ import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
 import { UserRole, Project, ProjectStatus, Role, Permission } from '@/lib/types'
 import { Plus, Trash2, Calendar } from 'lucide-react'
-import { canSee } from '@/lib/constants'
+import { canSee, recordActivityLog } from '@/lib/constants'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { getAllRoles, getAllPermissions } from '@/lib/utils'
 import { AddProjectModal } from '@/components/modals/add-project-modal'
+import { useUserIP } from '@/lib/userUserIp'
 
 export default function ProjectsPage() {
   const { user } = useAuth()
+  const { ip } = useUserIP()
   const [projects, setProjects] = useState<Project[]>(() =>
     JSON.parse(localStorage.getItem('projects') || '[]').filter((p: Project) =>
       user?.role === UserRole.SECRETARY_GENERAL || p.branchId === user?.branchId
@@ -118,6 +120,8 @@ export default function ProjectsPage() {
     setProjects([...projects, newProject])
     setFormData({ title: '', description: '', status: ProjectStatus.PLANNING })
     setShowForm(false)
+
+    recordActivityLog('Initialized', `Initialized project - ${newProject.title}`, user?.id, user?.name, ip!)
   }
 
   const handleUpdateStatus = (id: string, newStatus: ProjectStatus) => {
@@ -133,6 +137,10 @@ export default function ProjectsPage() {
     const allProjects = JSON.parse(localStorage.getItem('projects') || '[]')
     const updated = allProjects.filter((p: Project) => p.id !== id)
     localStorage.setItem('projects', JSON.stringify(updated))
+
+    const deletedPro = allProjects.find((pro: Project) => pro.id === id)?.title
+    recordActivityLog('Cancel', `Cancelled & removed project - ${deletedPro}`, user?.id, user?.name, ip!)
+
     setProjects(projects.filter(p => p.id !== id))
   }
 

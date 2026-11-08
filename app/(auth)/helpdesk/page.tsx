@@ -1,17 +1,22 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
-import { UserRole, HelpDeskCase, HelpDeskStatus } from '@/lib/types'
+import { getAllRoles, getAllPermissions } from '@/lib/utils'
+import { recordActivityLog } from '@/lib/constants'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { UserRole, HelpDeskCase, HelpDeskStatus, Role, Permission } from '@/lib/types'
 import { FileCaseModal } from '@/components/modals/file-case-modal'
 import { Plus, Users } from 'lucide-react'
+import { useUserIP } from '@/lib/userUserIp'
 
 export default function HelpdeskPage() {
   const { user } = useAuth()
+  const { ip } = useUserIP()
   const router = useRouter()
   const [cases, setCases] = useState<HelpDeskCase[]>(() =>
     JSON.parse(localStorage.getItem('helpDeskCases') || '[]').filter((c: HelpDeskCase) =>
@@ -20,6 +25,41 @@ export default function HelpdeskPage() {
   )
   const [showFileModal, setShowFileModal] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [roles, setRoles] = useState<Role[]>([])
+  const [permissions, setPermissions] = useState<Permission[]>([])
+
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false
+
+    const loadRolesAndPermissions = async () => {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) throw error
+      if (!session) return
+
+      const [loadedRoles, loadedPermissions] = await Promise.all([
+        getAllRoles(supabase, session),
+        getAllPermissions(supabase, session),
+      ])
+
+      if (!cancelled) {
+        setRoles(loadedRoles ?? [])
+        setPermissions(loadedPermissions ?? [])
+      }
+    }
+
+    void loadRolesAndPermissions().catch((error: unknown) => {
+      console.error('Unable to load roles and permissions:', error)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user]);
 
   // Can only access if authorized
   const canFileCase = [
@@ -90,6 +130,9 @@ export default function HelpdeskPage() {
     const allCases = JSON.parse(localStorage.getItem('helpDeskCases') || '[]')
     const updated = allCases.filter((c: HelpDeskCase) => c.id !== id)
     localStorage.setItem('helpDeskCases', JSON.stringify(updated))
+    const caseDeleted = allCases.find((c: HelpDeskCase) => c.id === id)?.title
+
+    recordActivityLog('Delete', `Deleted case - ${caseDeleted}`, user?.id, user?.name, ip!)
     setCases(cases.filter(c => c.id !== id))
   }
 

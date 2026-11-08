@@ -370,6 +370,13 @@ export interface EFileFolder {
   createdAt: Date
 }
 
+export interface Stakeholder {
+  id: string
+  name: string
+  profession: string
+  image?: string
+}
+
 // Auth Context
 export interface AuthContextType {
   user: User | null
@@ -379,4 +386,14 @@ export interface AuthContextType {
   logout: () => Promise<void>
   register: (email: string, name: string, password: string) => Promise<void>
   updatePassword: (currentPassword: string, newPassword: string) => Promise<void>
+}
+
+export interface ActivityLogEntry {
+  id: string
+  userId?: string
+  user_name?: string
+  action: string
+  details?: string
+  timestamp: string
+  ip?: string
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,18 +9,16 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth-context'
-import { UserRole, Event, EventInvitation } from '@/lib/types'
-import { Plus, Trash2, Calendar, MapPin, Upload, X, Users, Share2, Mail, MessageCircle, FileText } from 'lucide-react'
+import { UserRole, Event, EventInvitation, Role, Permission, Stakeholder } from '@/lib/types'
+import { canSee } from '@/lib/constants'
+import { Plus, Trash2, Calendar, MapPin, Upload, X, Users, Share2, Mail, MessageCircle } from 'lucide-react'
 import Twitter from '@/public/twitter.png'
 import Facebook from '@/public/facebook.png'
 import { EventInviteModal } from '@/components/modals/event-invite-modal'
-
-interface Stakeholder {
-  id: string
-  name: string
-  profession: string
-  image?: string // base64 image
-}
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { getAllPermissions, getAllRoles } from '@/lib/utils'
+import { recordActivityLog } from '@/lib/constants'
+import { useUserIP } from '@/lib/userUserIp'
 
 interface EventImage {
   url: string;
@@ -35,6 +33,7 @@ interface EventFile {
 
 export default function EventsPage() {
   const { user } = useAuth()
+  const { ip } = useUserIP()
   const [events, setEvents] = useState<Event[]>([])
   const [showForm, setShowForm] = useState(false)
   const [sortBy, setSortBy] = useState<'name' | 'date'>('date')
@@ -68,11 +67,40 @@ export default function EventsPage() {
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
 
+  const [roles, setRoles] = useState<Role[]>([])
+  const [permissions, setPermissions] = useState<Permission[]>([])
+
   const [isInviting, setIsInviting] = useState(false)
 
   // Load events and branches
   useEffect(() => {
     if (!user) return
+
+    let cancelled = false
+
+    const loadRolesAndPermissions = async () => {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) throw error
+      if (!session) return
+
+      const [loadedRoles, loadedPermissions] = await Promise.all([
+        getAllRoles(supabase, session),
+        getAllPermissions(supabase, session),
+      ])
+
+      if (!cancelled) {
+        setRoles(loadedRoles ?? [])
+        setPermissions(loadedPermissions ?? [])
+      }
+    }
+
+    void loadRolesAndPermissions().catch((error: unknown) => {
+      console.error('Unable to load roles and permissions:', error)
+    })
+
     const allEvents: Event[] = JSON.parse(localStorage.getItem('events') || '[]')
     const filtered = allEvents.filter((e: Event) =>
       user.role === UserRole.SECRETARY_GENERAL || e.branchId === user.branchId
@@ -81,10 +109,14 @@ export default function EventsPage() {
 
     const storedBranches = JSON.parse(localStorage.getItem('branches') || '[]')
     setBranches(storedBranches)
+
+    return () => {
+      cancelled = true
+    }
   }, [user])
 
   // Permission check
-  if (![UserRole.SECRETARY_GENERAL, UserRole.EVENTS_MANAGER, UserRole.BRANCH_ADMIN].includes(user?.role!)) {
+  if (canSee(user?.role ?? '', roles.map(role => role.id))) {
     return (
       <div className="p-6">
         <Card>
@@ -205,6 +237,7 @@ export default function EventsPage() {
 
     setEvents([...events, newEvent])
     resetForm()
+    recordActivityLog('Create', `Initialized a new event - ${newEvent.title}`, user?.id, user?.name, ip!)
   }
 
   const resetForm = () => {
@@ -218,6 +251,10 @@ export default function EventsPage() {
   const handleDelete = (id: string) => {
     const allEvents = JSON.parse(localStorage.getItem('events') || '[]')
     localStorage.setItem('events', JSON.stringify(allEvents.filter((e: Event) => e.id !== id)))
+
+    const removedEvent = allEvents.find((ev: Event) => ev.id === id)?.title
+    recordActivityLog('Cancel', `Cancelled event - ${removedEvent}`, user?.id, user?.name, ip!)
+
     setEvents(events.filter(e => e.id !== id))
   }
 

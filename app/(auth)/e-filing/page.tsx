@@ -11,9 +11,10 @@ import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
 import { Role, EFileFolder, EFile, Permission } from '@/lib/types'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
-import { menuItems, canSee } from '@/lib/constants'
+import { canSee, recordActivityLog } from '@/lib/constants'
+import { useUserIP } from '@/lib/userUserIp'
 import {
-  getAllPermissions, getAllRoles, getUserById
+  getAllPermissions, getAllRoles,
 } from '@/lib/utils'
 import { saveFile, deleteFile, getFolderFiles } from "@/utils/file-storage";
 import {
@@ -24,6 +25,7 @@ import {
 
 export default function EFilingPage() {
   const { user } = useAuth()
+  const { ip } = useUserIP()
   const [folders, setFolders] = useState<EFileFolder[]>([])
   const [files, setFiles] = useState<EFile[]>([]);
 
@@ -116,6 +118,8 @@ export default function EFilingPage() {
     setFiles(files.filter(f => f.folderId !== id))
 
     if (selectedFolder === id) setSelectedFolder(null)
+    const deletedFolder = allFolders.find((f: EFileFolder) => f.id === id)?.name
+    recordActivityLog('Delete', `Deleted folder - ${deletedFolder}`, user?.id, user?.name, ip!)
   }
 
   const handleFileUpload = async (
@@ -160,6 +164,9 @@ export default function EFilingPage() {
   const handleDeleteFile = async (id: string) => {
     await deleteFile(id);
 
+    const deletedFile = files.find(f => f.id === id)?.name
+    recordActivityLog('Delete', `Deleted file - ${deletedFile}`, user?.id, user?.name, ip!)
+    
     setFiles(prev => prev.filter(f => f.id !== id));
   }
 

@@ -42,7 +42,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/lib/auth-context'
-import { Permission, Role, AppUser } from '@/lib/types'
+import { Permission, Role, AppUser, ActivityLogEntry } from '@/lib/types'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import {
   Plus,
@@ -65,56 +65,11 @@ import {
 import {
   getAllPermissions, createRole, getAllRoles, updateRole,
   getAllUsersWithRoles, createUserAccount, updateUserAccount,
-  resendInvitation, deleteUserAccount
+  resendInvitation, deleteUserAccount,
+  getActivityLogs
 } from '@/lib/utils'
 import { cn, canSee, formatLabel, menuItems, getRoleAccesses } from '@/lib/constants'
 import { FullScreenLoader } from '@/components/fullScreenLoader'
-
-interface ActivityLogEntry {
-  id: string
-  userId: string
-  userName: string
-  action: string
-  details?: string
-  timestamp: string
-  ip?: string
-}
-
-const INITIAL_LOGS: ActivityLogEntry[] = [
-  {
-    id: 'log1',
-    userId: 'u1',
-    userName: 'Jane Doe',
-    action: 'Login',
-    details: 'Successful login',
-    timestamp: '2025-11-01T18:22:00Z',
-    ip: '192.168.1.10',
-  },
-  {
-    id: 'log2',
-    userId: 'u2',
-    userName: 'John Smith',
-    action: 'Updated user',
-    details: 'Changed role of Maria Garcia',
-    timestamp: '2025-10-28T10:05:00Z',
-  },
-  {
-    id: 'log3',
-    userId: 'u1',
-    userName: 'Jane Doe',
-    action: 'Created role',
-    details: 'Created role "Moderator"',
-    timestamp: '2025-10-25T14:12:00Z',
-  },
-  {
-    id: 'log4',
-    userId: 'u3',
-    userName: 'Maria Garcia',
-    action: 'Login',
-    details: 'Successful login',
-    timestamp: '2025-08-14T13:00:00Z',
-  },
-]
 
 // ---------- Component ----------
 export default function UserManagementPage() {
@@ -124,7 +79,7 @@ export default function UserManagementPage() {
   const [roles, setRoles] = useState<Role[]>([])
   const [permissions, setPermissions] = useState<Permission[]>([])
   const [users, setUsers] = useState<AppUser[]>([])
-  const [logs] = useState<ActivityLogEntry[]>(INITIAL_LOGS)
+  const [logs, setLogs] = useState<ActivityLogEntry[]>([])
 
   // UI state
   const [activeTab, setActiveTab] = useState('users')
@@ -181,24 +136,36 @@ export default function UserManagementPage() {
       }
     }
 
-    const loadUsers = async () => {
+    const loadUsersAndActivityLogs = async () => {
       const supabase = getSupabaseBrowserClient()
       if (!supabase) throw new Error('Supabase is not configured.')
       const { data: { session }, error } = await supabase.auth.getSession()
       if (error) throw error
       if (!session) return
+
       const loadedUsers = await getAllUsersWithRoles(supabase, session)
+      const usersList = loadedUsers ?? []
+      const loadedLogs = await getActivityLogs(supabase, session)
+      const usersById = new Map(usersList.map((loadedUser) => [loadedUser.id, loadedUser.full_name]))
+      const logsWithUserNames = (loadedLogs ?? []).map((log: ActivityLogEntry & { user_id?: string }) => {
+        const logUserId = log.userId ?? log.user_id
+        return {
+          ...log,
+          user_name: (logUserId && usersById.get(logUserId)) ?? log.user_name ?? 'Unknown user',
+        }
+      })
 
       if (!cancelled) {
-        setUsers(loadedUsers ?? [])
+        setUsers(usersList)
+        setLogs(logsWithUserNames)
       }
     }
 
     void loadRolesAndPermissions().catch((error: unknown) => {
       console.error('Unable to load roles and permissions:', error)
     })
-    void loadUsers().catch((error: unknown) => {
-      console.error('Unable to load users:', error)
+    void loadUsersAndActivityLogs().catch((error: unknown) => {
+      console.error('Unable to load users and logs:', error)
     })
 
     return () => {
@@ -829,7 +796,7 @@ export default function UserManagementPage() {
                   ) : (
                     logs.map((log) => (
                       <TableRow key={log.id}>
-                        <TableCell className="font-medium">{log.userName}</TableCell>
+                        <TableCell className="font-medium">{log.user_name}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             {log.action.toLowerCase().includes('login') ? (

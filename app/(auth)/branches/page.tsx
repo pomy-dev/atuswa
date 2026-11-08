@@ -5,7 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
-import { UserRole, Branch, User } from '@/lib/types'
+import { canSee } from '@/lib/constants'
+import { UserRole, Branch, User, Role, Permission } from '@/lib/types'
+import { getAllPermissions, getAllRoles } from '@/lib/utils'
 import {
   Plus,
   MapPin,
@@ -35,9 +37,13 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { recordActivityLog } from '@/lib/constants'
+import { useUserIP } from '@/lib/userUserIp'
 
 export default function BranchesPage() {
   const { user } = useAuth()
+  const { ip } = useUserIP()
   const [branches, setBranches] = useState<Branch[]>([])
   const [showAddModal, setShowAddModal] = useState(false)
   const [showAssignModal, setShowAssignModal] = useState(false)
@@ -55,8 +61,43 @@ export default function BranchesPage() {
     }))
     setBranches(normalized)
   }, [])
+  const [roles, setRoles] = useState<Role[]>([])
+  const [permissions, setPermissions] = useState<Permission[]>([])
 
-  if (user?.role !== UserRole.SECRETARY_GENERAL) {
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false
+
+    const loadRolesAndPermissions = async () => {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) throw error
+      if (!session) return
+
+      const [loadedRoles, loadedPermissions] = await Promise.all([
+        getAllRoles(supabase, session),
+        getAllPermissions(supabase, session),
+      ])
+
+      if (!cancelled) {
+        setRoles(loadedRoles ?? [])
+        setPermissions(loadedPermissions ?? [])
+      }
+    }
+
+    void loadRolesAndPermissions().catch((error: unknown) => {
+      console.error('Unable to load roles and permissions:', error)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user]);
+
+  if (canSee(user?.role ?? '', roles.map(role => role.id))) {
     return (
       <div className="p-6">
         <Card>
@@ -96,6 +137,7 @@ export default function BranchesPage() {
       return
     }
     persistBranches(branches.filter((b) => b.id !== branchId))
+    recordActivityLog('Remove', 'Removed and cancelled branch', user?.id, user?.name, ip!)
   }
 
   const handleEdit = (branch: Branch) => {
@@ -106,6 +148,7 @@ export default function BranchesPage() {
   const handleAssignAdmin = (branch: Branch) => {
     setAssigningBranch(branch)
     setShowAssignModal(true)
+    recordActivityLog('Assign', `Assign Branch Admin - ${branch}`, user?.id, user?.name, ip!)
   }
 
   const formatDate = (date: Date | string) => {

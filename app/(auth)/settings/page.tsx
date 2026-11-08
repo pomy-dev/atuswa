@@ -8,9 +8,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/lib/auth-context'
 import { User, Mail, Building2, Calendar, Lock, Activity, Clock } from 'lucide-react'
+import { recordActivityLog } from '@/lib/constants'
+import { useUserIP } from '@/lib/userUserIp'
 
 export default function SettingsPage() {
   const { user, updatePassword } = useAuth()
+  const { ip } = useUserIP()
   const [showPasswordForm, setShowPasswordForm] = useState(false)
   const [passwordData, setPasswordData] = useState({
     oldPassword: '',
@@ -64,6 +67,8 @@ export default function SettingsPage() {
       setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' })
       setShowPasswordForm(false)
       setTimeout(() => setPasswordMessage(''), 3000)
+
+      recordActivityLog('Update', `Updated account password`, user?.id, user?.name, ip!)
     } catch (error) {
       setPasswordError(error instanceof Error ? error.message : 'Unable to change password.')
     }

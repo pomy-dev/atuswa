@@ -17,12 +17,15 @@ import {
   ProjectTeamMember,
   ProjectResource
 } from '@/lib/types'
+import { recordActivityLog } from '@/lib/constants'
+import { useUserIP } from '@/lib/userUserIp'
 import { ArrowLeft, Plus, Trash2, Users, Download, Loader } from 'lucide-react'
 
 type Params = Promise<{ id: string }>
 
 export default function ProjectDetailPage({ params }: { params: Params }) {
   const { user } = useAuth()
+  const { ip } = useUserIP()
   const [project, setProject] = useState<Project | null>(null)
   const [activeSection, setActiveSection] = useState<'overview' | 'phases' | 'team' | 'resources'>('overview')
   const [newPhaseName, setNewPhaseName] = useState('')
@@ -113,11 +116,15 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
       ...project,
       teamMembers: [...project.teamMembers, member]
     })
+
+    recordActivityLog('Assign', `Affiliated member - ${member.role} to project ${project.title}`, user?.id, user?.name, ip!)
     setNewTeamMember({ userId: '', role: '' })
   }
 
   const removeTeamMember = (memberId: string) => {
     if (!project) return
+    const member = project.teamMembers.find((m) => m.id === id)?.role
+    recordActivityLog('Remove', `Removed member ${member} from project ${project.title}`, user?.id, user?.name, ip!)
     saveProject({
       ...project,
       teamMembers: project.teamMembers.filter(m => m.id !== memberId)

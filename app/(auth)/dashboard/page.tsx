@@ -10,9 +10,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { Users, DollarSign, Briefcase, AlertCircle, Plus, Trash2, CheckCircle, Clock, Image as ImageIcon } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
+import { recordActivityLog } from '@/lib/constants'
+import { useUserIP } from '@/lib/userUserIp'
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const { ip } = useUserIP()
   const [activeTab, setActiveTab] = useState('overview')
   const [articles, setArticles] = useState<any[]>([])
   const [showArticleForm, setShowArticleForm] = useState(false)
@@ -90,12 +93,15 @@ export default function DashboardPage() {
     setArticles(allArticles)
     setArticleForm({ title: '', content: '', category: 'General', published: false, featuredImage: null, featuredImageCaption: '', attachedFiles: [] })
     setShowArticleForm(false)
+    recordActivityLog('Published', `Uploaded & published article - ${newArticle.title} ${newArticle.category}`, user?.id, user?.name, ip!)
   }
 
   const handleDeleteArticle = (id: string) => {
     const updated = articles.filter(a => a.id !== id)
     localStorage.setItem('articles', JSON.stringify(updated))
     setArticles(updated)
+    const deletedArticle = articles.find(a => a.id === id)?.title
+    recordActivityLog('Unpublish', `Removed article - ${deletedArticle}`, user?.id, user?.name, ip!)
   }
 
   const stats = useMemo(() => {

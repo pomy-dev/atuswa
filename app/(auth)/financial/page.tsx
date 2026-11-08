@@ -1,34 +1,75 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
-import { UserRole, FinancialRecord, TransactionType } from '@/lib/types'
-import { Plus, TrendingUp, TrendingDown, Trash2, Calendar } from 'lucide-react'
+import { UserRole, FinancialRecord, TransactionType, Role, Permission } from '@/lib/types'
+import { Plus, TrendingUp, TrendingDown, Trash2 } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { getAllPermissions, getAllRoles } from '@/lib/utils'
+import { canSee, recordActivityLog } from '@/lib/constants'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { AddFinancialModal } from '@/components/modals/add-financial-modal'
+import { useUserIP } from '@/lib/userUserIp'
 
 export default function FinancialPage() {
   const { user } = useAuth()
-  const [records, setRecords] = useState<FinancialRecord[]>(() =>
-    JSON.parse(localStorage.getItem('financialRecords') || '[]').filter((r: FinancialRecord) =>
-      user?.role === UserRole.SECRETARY_GENERAL || r.branchId === user?.branchId
-    )
-  )
+  const { ip } = useUserIP()
   const [showAddFinancialModal, setShowAddFinancialModal] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
+  const [roles, setRoles] = useState<Role[]>([])
+  const [permissions, setPermissions] = useState<Permission[]>([])
+
+  const [records, setRecords] = useState<FinancialRecord[]>(() =>
+    JSON.parse(localStorage.getItem('financialRecords') || '[]').filter((r: FinancialRecord) =>
+      user?.role === UserRole.SECRETARY_GENERAL || r.branchId === user?.branchId
+    )
+  )
+
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false
+
+    const loadRolesAndPermissions = async () => {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) throw error
+      if (!session) return
+
+      const [loadedRoles, loadedPermissions] = await Promise.all([
+        getAllRoles(supabase, session),
+        getAllPermissions(supabase, session),
+      ])
+
+      if (!cancelled) {
+        setRoles(loadedRoles ?? [])
+        setPermissions(loadedPermissions ?? [])
+      }
+    }
+
+    void loadRolesAndPermissions().catch((error: unknown) => {
+      console.error('Unable to load roles and permissions:', error)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user]);
 
   // Can only access if Secretary General or Treasurer
-  if (![UserRole.SECRETARY_GENERAL, UserRole.TREASURER].includes(user?.role!)) {
+  if (canSee(user?.role ?? '', roles.map(role => role.id))) {
     return (
       <div className="p-6">
         <Card>
@@ -68,15 +109,19 @@ export default function FinancialPage() {
     const allRecords = JSON.parse(localStorage.getItem('financialRecords') || '[]')
     const updated = allRecords.filter((r: FinancialRecord) => r.id !== id)
     localStorage.setItem('financialRecords', JSON.stringify(updated))
+
+    const deletedRecordType = allRecords.find((re: FinancialRecord) => re.id === id)?.type
+    const deletedRecordAmount = allRecords.find((re: FinancialRecord) => re.id === id)?.amount
+    recordActivityLog('Delete', `Deleted financial record - ${deletedRecordType}, ${deletedRecordAmount}`, user?.id, user?.name, ip!)
     setRecords(records.filter(r => r.id !== id))
   }
 
   const filteredAndSortedRecords = useMemo(() => {
     let filtered = records.filter(r => {
-      const matchType = filterType === 'all' || 
+      const matchType = filterType === 'all' ||
         (filterType === 'income' && r.type === TransactionType.INCOME) ||
         (filterType === 'expense' && r.type === TransactionType.EXPENSE)
-      
+
       const recordDate = new Date(r.date)
       let matchDate = true
 
@@ -301,6 +346,8 @@ export default function FinancialPage() {
             const updated = [...allRecords, newRecord]
             localStorage.setItem('financialRecords', JSON.stringify(updated))
             setRecords(r => [...r, newRecord])
+
+            recordActivityLog('Record', `Recorded financial statement of - ${newRecord.amount} ${newRecord.category}`, user?.id, user?.name, ip!)
             setShowAddFinancialModal(false)
           } finally {
             setIsLoading(false)
