@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
 import { getAllRoles, getAllPermissions } from '@/lib/utils'
-import { recordActivityLog } from '@/lib/constants'
+import { recordActivityLog, canSee } from '@/lib/constants'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { UserRole, HelpDeskCase, HelpDeskStatus, Role, Permission } from '@/lib/types'
 import { FileCaseModal } from '@/components/modals/file-case-modal'
@@ -61,14 +61,7 @@ export default function HelpdeskPage() {
     }
   }, [user]);
 
-  // Can only access if authorized
-  const canFileCase = [
-    UserRole.SECRETARY_GENERAL,
-    UserRole.BRANCH_ADMIN,
-    'board_member' // For board members
-  ].includes(user?.role!)
-
-  if (!canFileCase) {
+  if (canSee(user?.role ?? '', roles.map(role => role.id))) {
     return (
       <div className="p-6">
         <Card>

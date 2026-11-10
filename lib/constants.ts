@@ -92,6 +92,12 @@ export const menuItems = [
     accesses: ['Overview', 'Branches', 'Users', 'Tucoswa Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
   },
   {
+    label: 'Affiliate Portal',
+    href: '/affiliate',
+    icon: Building2,
+    accesses: ['Affiliate Portal'],
+  },
+  {
     label: 'Financial',
     href: '/financial',
     icon: DollarSign,

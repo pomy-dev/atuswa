@@ -92,7 +92,7 @@ export default function LoginPage() {
       const route = await getLandingRoute(profile?.role)
       router.push(route)
 
-      await recordActivityLog('Login', 'Successful login', authenticatedUser.id, ip!)
+      // await recordActivityLog('Login', 'Successful login', authenticatedUser.id, ip!)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
