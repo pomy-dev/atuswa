@@ -232,7 +232,6 @@ export default function EFilingPage() {
     return <File className="w-5 h-5 text-gray-500" />;
   };
 
-
   // Can only access if authorized
   if (canSee(user?.role ?? '', roles.map(role => role.id))) {
     return (

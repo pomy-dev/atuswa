@@ -61,6 +61,7 @@ export default function BranchesPage() {
     }))
     setBranches(normalized)
   }, [])
+
   const [roles, setRoles] = useState<Role[]>([])
   const [permissions, setPermissions] = useState<Permission[]>([])
 
