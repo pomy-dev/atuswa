@@ -1,6 +1,6 @@
 
 import { SupabaseClient } from '@supabase/supabase-js'
-import type { Branch } from '@/lib/types'
+import type { Branch, AssignBranchAdminResponse } from '@/lib/types'
 
 // 1. CREATE BRANCH
 export async function createBranch(
@@ -140,24 +140,78 @@ export async function deactivateBranch(
   return data as Branch
 }
 
-
 // 8. ASSIGN BRANCH ADMINISTRATOR
+// export async function assignBranchAdmin(
+//   supabase: SupabaseClient,
+//   branchId: string,
+//   userId: string
+// ): Promise<Branch> {
+
+//   const { data, error } = await supabase
+//     .from('branches')
+//     .update({ admin_id: userId })
+//     .eq('id', branchId)
+//     .select('*')
+//     .single()
+
+//   if (error) throw error
+
+//   return data as Branch
+// }
+
 export async function assignBranchAdmin(
   supabase: SupabaseClient,
   branchId: string,
   userId: string
-): Promise<Branch> {
+): Promise<AssignBranchAdminResponse> {
 
-  const { data, error } = await supabase
-    .from('branches')
-    .update({ admin_id: userId })
-    .eq('id', branchId)
-    .select('*')
-    .single()
+  const { data, error } = await supabase.functions.invoke(
+    'assign-branch-admin',
+    {
+      body: {
+        branchId,
+        userId
+      }
+    }
+  )
 
-  if (error) throw error
+  if (error) {
+    console.error('Edge Function error:', error)
 
-  return data as Branch
+    // Extract the actual response from Supabase
+    if ('context' in error && error.context instanceof Response) {
+      const response = error.context
+
+      let errorDetails: unknown
+
+      try {
+        errorDetails = await response.json()
+      } catch {
+        errorDetails = await response.text()
+      }
+
+      console.error('Function response:', errorDetails)
+      console.error('HTTP status:', response.status)
+
+      throw new Error(
+        typeof errorDetails === 'object' &&
+          errorDetails !== null &&
+          'error' in errorDetails
+          ? String(errorDetails.error)
+          : 'Failed to assign branch administrator'
+      )
+    }
+
+    throw error
+  }
+
+  if (!data?.success) {
+    throw new Error(
+      data?.error || 'Failed to assign branch administrator'
+    )
+  }
+
+  return data
 }
 
 // 9. REMOVE BRANCH ADMINISTRATOR

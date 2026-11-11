@@ -484,7 +484,7 @@ export default function BranchesPage() {
             const supabase = getSupabaseBrowserClient()
             if (!supabase) throw new Error('Supabase is not configured.')
             const assignedResult = await assignBranchAdmin(supabase, updatedBranch.id, admin.id);
-
+            console.log(assignedResult)
             if (assignedResult) {
               setBranches((prevBranches) =>
                 prevBranches.map((b) =>

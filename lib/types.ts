@@ -60,6 +60,14 @@ export interface Branch {
   createdAt: Date | string
 }
 
+export interface AssignBranchAdminResponse {
+  success: boolean
+  assigned: boolean
+  emailSent: boolean
+  emailId?: string
+  message: string
+}
+
 // Board Member Types
 export interface BoardMember {
   id: string
