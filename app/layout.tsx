@@ -6,6 +6,11 @@ import './globals.css'
 import { AuthProvider } from '@/lib/auth-context'
 import { useEffect } from 'react'
 import { initializeDummyData } from '@/lib/dummy-data'
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+
 
 // Note: Cannot export metadata in Client Components
 // Moving to separate root layout if needed
@@ -20,7 +25,7 @@ export default function RootLayout({
   }, [])
 
   return (
-    <html lang="en" className="bg-background">
+    <html lang="en" className={cn("bg-background", "font-sans", geist.variable)}>
       <head>
         <title>TUCOSWA - Management System</title>
         <link rel="icon" href="/logo.png" />

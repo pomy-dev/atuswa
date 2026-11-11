@@ -4,16 +4,15 @@ import {
   LayoutDashboard,
   Users,
   UserCog,
-  DollarSign,
   Briefcase,
   Calendar,
   LifeBuoy,
   FileText,
-  Settings,
+  Settings, Currency,
   Building2,
 } from 'lucide-react'
 import { Role, ActivityLogEntry } from '@/lib/types'
-import { createActivityLog } from './utils'
+import { createActivityLog } from '@/services/auth-services'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 
 export function cn(...inputs: ClassValue[]) {
@@ -100,7 +99,7 @@ export const menuItems = [
   {
     label: 'Financial',
     href: '/financial',
-    icon: DollarSign,
+    icon: Currency,
     accesses: ['Overview', 'Branches', 'Users', 'Tucoswa Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
   },
   {
@@ -147,7 +146,7 @@ export const recordActivityLog = async (action: string, details: string, userId?
     userId,
     action,
     details,
-    timestamp: `${Date.now()}`,
+    created_at: `${Date.now()}`,
     ip
   }
 

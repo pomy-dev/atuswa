@@ -10,10 +10,9 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 import { getUserById } from '@/lib/utils'
-import { getRoleAccesses, recordActivityLog } from '@/lib/constants'
-import { ActivityLogEntry, Role } from '@/lib/types'
+import { getRoleAccesses } from '@/lib/constants'
+import { Role } from '@/lib/types'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
-import { useUserIP } from '@/lib/userUserIp'
 
 async function getUserProfile(userId: string) {
   const supabase = getSupabaseBrowserClient()
@@ -78,7 +77,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const router = useRouter()
-  const { ip } = useUserIP();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -91,8 +89,6 @@ export default function LoginPage() {
 
       const route = await getLandingRoute(profile?.role)
       router.push(route)
-
-      // await recordActivityLog('Login', 'Successful login', authenticatedUser.id, ip!)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {

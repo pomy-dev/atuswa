@@ -6,8 +6,8 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
 import { canSee } from '@/lib/constants'
-import { UserRole, Branch, User, Role, Permission } from '@/lib/types'
-import { getAllPermissions, getAllRoles } from '@/lib/utils'
+import { Branch, Role, Permission, AppUser } from '@/lib/types'
+import { getAllPermissions, getAllRoles, getAllUsersWithRoles } from '@/services/auth-services'
 import {
   Plus,
   MapPin,
@@ -18,6 +18,7 @@ import {
   Trash2,
   Power,
   UserPlus,
+  UserMinus,
   MoreHorizontal,
 } from 'lucide-react'
 import { AddBranchModal } from '@/components/modals/add-branch-modal'
@@ -30,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { sendAdminAssignmentEmail } from '@/services/email-service'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,28 +41,31 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { recordActivityLog } from '@/lib/constants'
+
+import {
+  createBranch, getAllBranches, activateBranch, deactivateBranch, deleteBranch,
+  updateBranch, assignBranchAdmin, removeBranchAdmin
+} from '@/services/branch-service'
+import { toast } from 'sonner'
+import { FullScreenLoader } from '@/components/fullScreenLoader'
 import { useUserIP } from '@/lib/userUserIp'
 
 export default function BranchesPage() {
   const { user } = useAuth()
-  const { ip } = useUserIP()
+  const { ip } = useUserIP();
   const [branches, setBranches] = useState<Branch[]>([])
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [showAssignModal, setShowAssignModal] = useState(false)
+  const [users, setUsers] = useState<AppUser[]>([])
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null)
   const [assigningBranch, setAssigningBranch] = useState<Branch | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
 
-  useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem('branches') || '[]')
-    const normalized = stored.map((b: any) => ({
-      ...b,
-      isActive: b.isActive ?? true,
-      contactEmail: b.contactEmail ?? '',
-      createdAt: b.createdAt ? new Date(b.createdAt) : new Date(),
-    }))
-    setBranches(normalized)
-  }, [])
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showAssignModal, setShowAssignModal] = useState(false)
+
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSettingStatus, setIsSettingStatus] = useState(false)
+  const [isActivating, setIsActivating] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isRemovingAdmin, setIsRemovingAdmin] = useState(false)
 
   const [roles, setRoles] = useState<Role[]>([])
   const [permissions, setPermissions] = useState<Permission[]>([])
@@ -89,8 +94,25 @@ export default function BranchesPage() {
       }
     }
 
+    const loadUsers = async () => {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) throw error
+      if (!session) return
+
+      const loadedUsers = await getAllUsersWithRoles(supabase, session)
+      setUsers(loadedUsers!)
+    }
+
     void loadRolesAndPermissions().catch((error: unknown) => {
       console.error('Unable to load roles and permissions:', error)
+    })
+    void loadUsers().catch((error: unknown) => {
+      console.error('Unable to load roles and permissions:', error)
+    })
+    void fetchBranches().catch((error: unknown) => {
+      console.error('Unable to load branches:', error)
     })
 
     return () => {
@@ -112,6 +134,28 @@ export default function BranchesPage() {
     )
   }
 
+  const fetchBranches = async () => {
+    try {
+      setIsLoading(true)
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const branches = await getAllBranches(supabase);
+      const normalized = branches.map((b: any) => ({
+        ...b,
+        name: b.branch_name,
+        isActive: b.is_active,
+        contactEmail: b.contact_email,
+        adminId: b.admin_id ?? b.adminId,
+        createdAt: b.created_at ? new Date(b.created_at) : new Date(),
+      }))
+      setBranches(normalized)
+    } catch (error) {
+      console.error('Error fetching branches:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const memberCounts = useMemo(() => {
     const members = JSON.parse(localStorage.getItem('members') || '[]')
     const counts: Record<string, number> = {}
@@ -121,24 +165,49 @@ export default function BranchesPage() {
     return counts
   }, [branches])
 
-  const persistBranches = (updated: Branch[]) => {
-    setBranches(updated)
-    localStorage.setItem('branches', JSON.stringify(updated))
-  }
-
-  const handleToggleActive = (branchId: string) => {
+  const handleToggleActive = async (branchId: string) => {
     const updated = branches.map((b) =>
       b.id === branchId ? { ...b, isActive: !b.isActive } : b
     )
-    persistBranches(updated)
+    try {
+      setIsSettingStatus(true)
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      if (isActivating) {
+        const updatedInfo = await activateBranch(supabase, branchId);
+        updatedInfo ? toast.success("Activation went successful") : toast.error("Could not invoke activation")
+        setBranches(updated)
+      } else {
+        const updatedInfo = await deactivateBranch(supabase, branchId);
+        updatedInfo ? toast.success("De-activation succeeded") : toast.error("Could not de-activate branch")
+        setBranches(updated)
+      }
+    } catch (err) {
+      throw new Error(`Encountered error: ${err}`);
+    } finally {
+      setIsSettingStatus(false);
+      await fetchBranches();
+    }
   }
 
-  const handleRemove = (branchId: string) => {
+  const handleRemove = async (branchId: string) => {
     if (!confirm('Are you sure you want to remove this branch? This cannot be undone.')) {
       return
     }
-    persistBranches(branches.filter((b) => b.id !== branchId))
-    recordActivityLog('Remove', 'Removed and cancelled branch', user?.id, user?.name, ip!)
+    try {
+      setIsDeleting(true)
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      await deleteBranch(supabase, branchId);
+      toast.success("Branch deleted successful.")
+      recordActivityLog('Remove', 'Removed and cancelled branch', user?.id, user?.name, user?.id)
+    } catch (error) {
+      toast.error("Could not remove branch.")
+      throw new Error(`Encountered error: ${error}`)
+    } finally {
+      setIsDeleting(false)
+      await fetchBranches()
+    }
   }
 
   const handleEdit = (branch: Branch) => {
@@ -149,12 +218,42 @@ export default function BranchesPage() {
   const handleAssignAdmin = (branch: Branch) => {
     setAssigningBranch(branch)
     setShowAssignModal(true)
-    recordActivityLog('Assign', `Assign Branch Admin - ${branch}`, user?.id, user?.name, ip!)
+  }
+
+  const handleRemoveAdmin = async (branch: Branch) => {
+    const adminId = branch.adminId ?? (branch as Branch & { admin_id?: string }).admin_id
+    if (!adminId) return
+
+    try {
+      setIsRemovingAdmin(true)
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+
+      await removeBranchAdmin(supabase, branch.id)
+      setBranches((previous) =>
+        previous.map((item) =>
+          item.id === branch.id
+            ? {
+              ...item,
+              adminId: undefined,
+              admin_id: null,
+              admin: undefined,
+            }
+            : item
+        )
+      )
+      toast.success('Branch admin removed successfully.')
+    } catch (error) {
+      console.error('Unable to remove branch admin:', error)
+      toast.error('Could not remove branch admin.')
+    } finally {
+      setIsRemovingAdmin(false)
+    }
   }
 
   const formatDate = (date: Date | string) => {
     const d = typeof date === 'string' ? new Date(date) : date
-    return d.toLocaleDateString('en-GB', {
+    return d?.toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
@@ -206,97 +305,119 @@ export default function BranchesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {branches.map((branch) => (
-                    <TableRow key={branch.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          {branch.name}
-                          {branch.id === 'branch_main' && (
-                            <Badge variant="secondary" className="text-xs">
-                              HQ
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                          <Calendar className="w-3.5 h-3.5" />
-                          {formatDate(branch.createdAt)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                          {branch.location}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {branch.contactEmail ? (
-                          <div className="flex items-center gap-1.5 text-sm">
-                            <Mail className="w-3.5 h-3.5 text-muted-foreground" />
-                            {branch.contactEmail}
+                  {branches.map((branch) => {
+                    const adminId = branch.adminId ??
+                      (branch as Branch & { admin_id?: string | null }).admin_id
+                    const assignedAdmin = users.find(
+                      (candidate) => String(candidate.id) === String(adminId)
+                    )
+
+                    return (
+                      <TableRow key={branch.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {branch.name}
+                            {branch.id === 'branch_main' && (
+                              <Badge variant="secondary" className="text-xs">
+                                HQ
+                              </Badge>
+                            )}
                           </div>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">Not assigned</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5 font-medium">
-                          <Users className="w-3.5 h-3.5 text-muted-foreground" />
-                          {memberCounts[branch.id] ?? branch.memberCount ?? 0}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={branch.isActive ? 'default' : 'secondary'}
-                          className={
-                            branch.isActive
-                              ? 'bg-green-100 text-green-800 hover:bg-green-100'
-                              : 'bg-gray-100 text-gray-600'
-                          }
-                        >
-                          {branch.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            className={buttonVariants({ variant: 'ghost', size: 'icon', className: 'h-8 w-8' })}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                            <Calendar className="w-3.5 h-3.5" />
+                            {formatDate(branch.createdAt)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5 text-sm">
+                            <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                            {branch.location}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {assignedAdmin?.email || branch.contactEmail ? (
+                            <div className="flex items-center gap-1.5 text-sm">
+                              <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                              {assignedAdmin?.email || branch.contactEmail}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">Not assigned</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5 font-medium">
+                            <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                            {memberCounts[branch.id] ?? branch.memberCount ?? 0}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={branch.isActive ? 'default' : 'secondary'}
+                            className={
+                              branch.isActive
+                                ? 'bg-green-100 text-green-800 hover:bg-green-100'
+                                : 'bg-gray-100 text-gray-600'
+                            }
                           >
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Open menu</span>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEdit(branch)}>
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-
-                            <DropdownMenuItem onClick={() => handleAssignAdmin(branch)}>
-                              <UserPlus className="mr-2 h-4 w-4" />
-                              {branch.adminId ? 'Re-assign Admin' : 'Assign Admin'}
-                            </DropdownMenuItem>
-
-                            <DropdownMenuItem onClick={() => handleToggleActive(branch.id)}>
-                              <Power className="mr-2 h-4 w-4" />
-                              {branch.isActive ? 'Deactivate' : 'Activate'}
-                            </DropdownMenuItem>
-
-                            <DropdownMenuSeparator />
-
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => handleRemove(branch.id)}
-                              disabled={branch.id === 'branch_main'}
+                            {branch.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              className={buttonVariants({ variant: 'ghost', size: 'icon', className: 'h-8 w-8' })}
                             >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Remove
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Open menu</span>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleEdit(branch)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+
+                              {adminId ? (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => handleRemoveAdmin(branch)}
+                                >
+                                  <UserMinus className="mr-2 h-4 w-4" />
+                                  Remove Admin
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem onClick={() => handleAssignAdmin(branch)}>
+                                  <UserPlus className="mr-2 h-4 w-4" />
+                                  Assign Admin
+                                </DropdownMenuItem>
+                              )}
+
+                              <DropdownMenuItem onClick={() => {
+                                branch.isActive && setIsActivating(true)
+                                handleToggleActive(branch.id)
+                              }}
+                              >
+                                <Power className="mr-2 h-4 w-4" />
+                                {branch.isActive ? 'Deactivate' : 'Activate'}
+                              </DropdownMenuItem>
+
+                              <DropdownMenuSeparator />
+
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => { handleRemove(branch.id) }}
+                                disabled={branch.id === 'branch_main'}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Remove
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -312,21 +433,36 @@ export default function BranchesPage() {
           if (!open) setEditingBranch(null)
         }}
         editingBranch={editingBranch}
-        onSubmit={(branch) => {
+        onSubmit={async (branch) => {
           setIsLoading(true)
           try {
+            const supabase = getSupabaseBrowserClient()
+            if (!supabase) throw new Error('Supabase is not configured.')
             if (editingBranch) {
-              const updated = branches.map((b) =>
-                b.id === editingBranch.id ? { ...b, ...branch } : b
-              )
-              persistBranches(updated)
+              console.log("1", editingBranch)
+              const updated = branches.find((b) => b.id === editingBranch.id)
+              const editedInfo = await updateBranch(supabase, branch.id, branch)
+              console.log("2", branch)
+              if (editedInfo) {
+                setBranches((prevBranches) => prevBranches.map((b) => (b.id === branch.id ? branch : b)))
+                toast.success("Branch updated successfully")
+              } else toast.error("Could not invoke activation")
+
             } else {
-              persistBranches([...branches, branch])
+              const newBranch = await createBranch(supabase, branch);
+              if (newBranch) {
+                recordActivityLog('Create', `Created new branch - ${branch.name}`, user?.id, user?.name, ip!)
+                toast.success("New branch created successful")
+                setBranches((prevBranches) => [...prevBranches, branch])
+              } else {
+                toast.error("Could not create new branch")
+              }
             }
-            setShowAddModal(false)
-            setEditingBranch(null)
           } finally {
             setIsLoading(false)
+            setShowAddModal(false)
+            setEditingBranch(null)
+            await fetchBranches();
           }
         }}
         isLoading={isLoading}
@@ -340,33 +476,51 @@ export default function BranchesPage() {
           if (!open) setAssigningBranch(null)
         }}
         branch={assigningBranch}
-        onSubmit={(updatedBranch, admin) => {
+        branches={branches}
+        users={users} //Pass the users list 
+        onSubmit={async (updatedBranch, admin) => {
           setIsLoading(true)
           try {
-            // Update branch
-            const updatedBranches = branches.map((b) =>
-              b.id === updatedBranch.id ? updatedBranch : b
-            )
-            persistBranches(updatedBranches)
+            const supabase = getSupabaseBrowserClient()
+            if (!supabase) throw new Error('Supabase is not configured.')
+            const assignedResult = await assignBranchAdmin(supabase, updatedBranch.id, admin.id);
 
-            // Add / replace the admin user
-            const allUsers: User[] = JSON.parse(localStorage.getItem('users') || '[]')
+            if (assignedResult) {
+              setBranches((prevBranches) =>
+                prevBranches.map((b) =>
+                  b.id === updatedBranch.id
+                    ? { ...b, adminId: admin.id, admin: admin }
+                    : b
+                )
+              );
+              recordActivityLog(
+                'Assign Admin',
+                `Assigned ${admin.full_name} as admin to branch ${updatedBranch.name}`,
+                user?.id,
+                user?.name,
+                ip!
+              );
+              toast.success("Branch admin assigned successfully.");
 
-            // Optional: remove previous admin of this branch if you want strict 1-admin-per-branch
-            const filteredUsers = allUsers.filter(
-              (u) => !(u.role === UserRole.BRANCH_ADMIN && u.branchId === updatedBranch.id)
-            )
+              const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+              if (sessionError) throw sessionError;
+              if (session) {
+                await sendAdminAssignmentEmail(supabase, session, admin, updatedBranch);
+              }
 
-            localStorage.setItem('users', JSON.stringify([...filteredUsers, admin]))
-
-            setShowAssignModal(false)
-            setAssigningBranch(null)
+            } else {
+              toast.error("Failed to assign branch admin.");
+            }
+            setShowAssignModal(false);
+            setAssigningBranch(null);
           } finally {
             setIsLoading(false)
           }
         }}
         isLoading={isLoading}
       />
+
+      <FullScreenLoader isLoading={isSettingStatus || isDeleting || isRemovingAdmin} />
     </div>
   )
 }

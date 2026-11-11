@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { LogOut } from 'lucide-react'
 import { menuItems, cn } from '@/lib/constants'
-import { getAccessesByRoleName } from "@/lib/utils";
+import { getAccessesByRoleName } from "@/services/auth-services";
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 
 export function Sidebar() {

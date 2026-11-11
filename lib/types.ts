@@ -56,6 +56,7 @@ export interface Branch {
   isActive: boolean
   memberCount?: number
   adminId?: string
+  admin?: AppUser
   createdAt: Date | string
 }
 
@@ -394,6 +395,6 @@ export interface ActivityLogEntry {
   user_name?: string
   action: string
   details?: string
-  timestamp: string
+  created_at: string
   ip?: string
 }
