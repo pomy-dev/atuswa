@@ -187,9 +187,8 @@ export default function UserManagementPage() {
       const loadedUsers = await getAllUsersWithRoles(supabase, session)
       const usersList = loadedUsers ?? []
       const loadedLogs = await getActivityLogs(supabase, session)
-      const usersById = new Map(
-        usersList.map((loadedUser) => [loadedUser.id, loadedUser.full_name])
-      )
+      const usersById = new Map(usersList.map((loadedUser) => [loadedUser.id, loadedUser.full_name]))
+      
       const logsWithUserNames = (loadedLogs ?? []).map(
         (log: ActivityLogEntry & { user_id?: string }) => {
           const logUserId = log.userId ?? log.user_id

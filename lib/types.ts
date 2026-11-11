@@ -350,25 +350,26 @@ export interface HelpDeskCase {
 // E-Filing Types
 export interface EFile {
   id: string
-  branchId: string
-  folderId: string
-
+  branch_id: string | null
+  folder_id: string | null
   name: string
-  type: string
-  size: number
-
-  uploadedBy: string
-  uploadedAt: Date
-
-  file: File
+  mime_type: string
+  size_bytes: number
+  uploaded_by: string | null
+  uploaded_at: string
+  storage_path: string | null
+  /** Present only while uploading a new file; persisted rows contain storage_path. */
+  file?: File
 }
 
 export interface EFileFolder {
   id: string
-  branchId: string
+  user_id: string
+  branch_id: string | null
+  affiliate_id?: string | null
   name: string
   notes?: string
-  createdAt: Date
+  created_at: Date
 }
 
 export interface Stakeholder {
