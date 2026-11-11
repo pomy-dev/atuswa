@@ -23,7 +23,7 @@ export function CaseHandlers({ handlers }: CaseHandlersProps) {
       <h3 className="font-semibold mb-4">Case Journey</h3>
       <div className="space-y-3">
         {handlers?.map((handler, index) => (
-          <div key={handler.userId + handler.handledAt} className="flex gap-3">
+          <div key={handler.user_id + handler.handled_at} className="flex gap-3">
             <div className="flex flex-col items-center">
               <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center">
                 <span className="text-xs font-semibold text-accent-foreground">
@@ -36,13 +36,13 @@ export function CaseHandlers({ handlers }: CaseHandlersProps) {
             </div>
             <div className="flex-1 pt-1">
               <div className="flex items-center gap-2">
-                <p className="font-medium text-sm">{handler.userName}</p>
+                <p className="font-medium text-sm">{handler.user_name}</p>
                 <Badge variant="secondary" className="text-xs">
                   {handler.action}
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {new Date(handler.handledAt).toLocaleString()}
+                {new Date(handler.handled_at).toLocaleString()}
               </p>
             </div>
           </div>

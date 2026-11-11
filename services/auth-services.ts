@@ -338,3 +338,21 @@ export async function getActivityLogs(client: SupabaseClient, session: Session |
 
   return data;
 }
+
+export async function getUserActivityLogs(client: SupabaseClient, session: Session | null, userId: string) {
+  if (!session?.user) return null
+
+  const { data, error } = await client.rpc(
+    'get_user_activity_logs',
+    {
+      p_user_id: userId
+    }
+  )
+
+  if (error) {
+    console.error('Error fetching user activity logs:', error)
+    return
+  }
+
+  return data;
+}

@@ -316,43 +316,44 @@ export enum HelpDeskStatus {
 }
 
 export interface CaseHandler {
-  userId: string
-  userName: string
-  handledAt: Date
+  user_id: string
+  user_name: string
+  handled_at: Date
   action: string
 }
 
 export interface CaseNote {
   id: string
   content: string
-  createdBy: string
-  createdByName: string
-  createdAt: Date
+  created_by: string
+  created_by_name: string
+  created_at: Date
 }
 
 export interface CaseDocument {
   id?: string
   name: string
   url?: string
-  uploadedAt?: Date
+  uploaded_at?: Date
 }
 
 export interface HelpDeskCase {
   id: string
-  branchId?: string
+  branch_id?: string | null
+  affiliate_id?: string | null
   title: string
-  memberName: string
-  memberPhone: string
-  memberEmail: string
+  member_name: string
+  member_phone: string
+  member_email: string
   description: string
   status: HelpDeskStatus
   handlers: CaseHandler[]
   documents: CaseDocument[]
   notes: CaseNote[]
-  createdBy: string
-  createdByName: string
-  createdAt: Date
-  updatedAt: Date
+  created_by: string | null
+  created_by_name: string | null
+  created_at: Date
+  updated_at: Date
 }
 
 // E-Filing Types

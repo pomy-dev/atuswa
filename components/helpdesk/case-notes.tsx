@@ -28,7 +28,7 @@ export function CaseNotes({ notes, onAddNote, isLoading }: CaseNotesProps) {
   return (
     <Card className="p-4">
       <h3 className="font-semibold mb-4">Case Notes</h3>
-      
+
       {/* Add Note Form */}
       <div className="space-y-3 mb-6 pb-6 border-b border-border">
         <Textarea
@@ -55,14 +55,14 @@ export function CaseNotes({ notes, onAddNote, isLoading }: CaseNotesProps) {
           {notes.map((note) => (
             <div key={note.id} className="border-l-2 border-accent pl-4 py-2">
               <div className="flex items-center gap-2 mb-2">
-                <span className="font-medium text-sm">{note.createdByName}</span>
-                {note.createdBy === user?.id && (
+                <span className="font-medium text-sm">{note.created_by_name}</span>
+                {note.created_by === user?.id && (
                   <Badge variant="secondary" className="text-xs">You</Badge>
                 )}
               </div>
               <p className="text-sm text-foreground mb-2">{note.content}</p>
               <p className="text-xs text-muted-foreground">
-                {new Date(note.createdAt).toLocaleString()}
+                {new Date(note.created_at).toLocaleString()}
               </p>
             </div>
           ))}

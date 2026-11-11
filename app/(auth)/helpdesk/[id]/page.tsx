@@ -2,15 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { HelpDeskCase, HelpDeskStatus, CaseNote } from '@/lib/types'
+import { HelpDeskCase, HelpDeskStatus } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Select } from '@/components/ui/select'
 import { CaseHandlers } from '@/components/helpdesk/case-handlers'
 import { CaseNotes } from '@/components/helpdesk/case-notes'
 import { useAuth } from '@/lib/auth-context'
 import { ArrowLeft } from 'lucide-react'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { addHelpdeskCaseNote, getHelpdeskCaseById, updateHelpdeskCaseStatus } from '@/services/help-desk-service'
 
 export default function CaseDetailPage() {
   const params = useParams()
@@ -21,128 +22,64 @@ export default function CaseDetailPage() {
   const [caseData, setCaseData] = useState<HelpDeskCase | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [newStatus, setNewStatus] = useState<HelpDeskStatus | ''>('')
-
-  // useEffect(() => {
-  //   const cases = JSON.parse(localStorage.getItem('helpDeskCases') || '[]')
-  //   const found = cases.find((c: HelpDeskCase) => c.id === caseId)
-  //   setCaseData(found || null)
-  //   if (found) {
-  //     setNewStatus(found.status)
-  //   }
-  //   setIsLoading(false)
-  // }, [caseId])
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const cases = JSON.parse(localStorage.getItem('helpDeskCases') || '[]')
-    let found = cases.find((c: HelpDeskCase) => c.id === caseId)
-
-    if (found) {
-      // Normalize missing arrays
-      found = {
-        ...found,
-        handlers: found.handlers || [],
-        notes: found.notes || []
+    let cancelled = false
+    const load = async () => {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const found = await getHelpdeskCaseById(supabase, caseId)
+      if (!cancelled) {
+        setCaseData(found)
+        setNewStatus(found.status)
       }
-      setNewStatus(found.status)
     }
-
-    setCaseData(found || null)
-    setIsLoading(false)
+    void load().catch((loadError: unknown) => {
+      console.error('Unable to load helpdesk case:', loadError)
+      if (!cancelled) setError(loadError instanceof Error ? loadError.message : 'Unable to load case.')
+    }).finally(() => { if (!cancelled) setIsLoading(false) })
+    return () => { cancelled = true }
   }, [caseId])
 
-  const handleAddNote = (content: string) => {
-    if (!caseData) return
-
-    const newNote: CaseNote = {
-      id: `note_${Date.now()}`,
-      content,
-      createdBy: user!.id,
-      createdByName: user!.name,
-      createdAt: new Date()
-    }
-
-    const updated = {
-      ...caseData,
-      notes: [...caseData.notes, newNote],
-      updatedAt: new Date()
-    }
-
-    setCaseData(updated)
-    const cases = JSON.parse(localStorage.getItem('helpDeskCases') || '[]')
-    const index = cases.findIndex((c: HelpDeskCase) => c.id === caseId)
-    cases[index] = updated
-    localStorage.setItem('helpDeskCases', JSON.stringify(cases))
-  }
-
-  // const handleStatusChange = (status: string) => {
-  //   if (!caseData) return
-  //   const statusEnum = status as HelpDeskStatus
-
-  //   const updated = {
-  //     ...caseData,
-  //     status: statusEnum,
-  //     handlers: [
-  //       ...caseData?.handlers,
-  //       {
-  //         userId: user!.id,
-  //         userName: user!.name,
-  //         handledAt: new Date(),
-  //         action: `Status updated to ${statusEnum.replace('_', ' ')}`
-  //       }
-  //     ],
-  //     updatedAt: new Date()
-  //   }
-
-  //   setCaseData(updated)
-  //   setNewStatus(statusEnum)
-  //   const cases = JSON.parse(localStorage.getItem('helpDeskCases') || '[]')
-  //   const index = cases.findIndex((c: HelpDeskCase) => c.id === caseId)
-  //   cases[index] = updated
-  //   localStorage.setItem('helpDeskCases', JSON.stringify(cases))
-  // }
-
-  const handleStatusChange = (status: string) => {
+  const handleAddNote = async (content: string) => {
     if (!caseData || !user) return
-
-    const statusEnum = status as HelpDeskStatus
-
-    const updated = {
-      ...caseData,
-      status: statusEnum,
-      handlers: [
-        ...(caseData.handlers || []),   // ← Safe spread with fallback
-        {
-          userId: user.id,
-          userName: user.name,
-          handledAt: new Date(),
-          action: `Status updated to ${statusEnum.replace('_', ' ')}`
-        }
-      ],
-      updatedAt: new Date()
-    }
-
-    setCaseData(updated)
-    setNewStatus(statusEnum)
-
-    // Update localStorage
-    // const cases = JSON.parse(localStorage.getItem('helpDeskCases') || '[]')
-    // const index = cases.findIndex((c: HelpDeskStatus) => c.id === caseId)
-
-    const cases: HelpDeskCase[] = JSON.parse(localStorage.getItem('helpDeskCases') || '[]')
-    const index = cases.findIndex((c: HelpDeskCase) => c.id === caseId)
-
-    if (index !== -1) {
-      cases[index] = updated
-      localStorage.setItem('helpDeskCases', JSON.stringify(cases))
+    try {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const note = await addHelpdeskCaseNote(supabase, caseId, { content, created_by: user.id, created_by_name: user.name })
+      setCaseData(current => current ? { ...current, notes: [...current.notes, { ...note, created_at: new Date(note.created_at) }] } : current)
+      setError(null)
+    } catch (noteError) {
+      console.error('Unable to add helpdesk note:', noteError)
+      setError(noteError instanceof Error ? noteError.message : 'Unable to add note.')
     }
   }
 
+  const handleStatusChange = async (status: string) => {
+    if (!caseData || !user) return
+    const statusEnum = status as HelpDeskStatus
+    try {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      await updateHelpdeskCaseStatus(supabase, caseId, statusEnum, { id: user.id, name: user.name })
+      setCaseData(current => current ? { ...current, status: statusEnum, handlers: [...current.handlers, {
+        user_id: user.id, user_name: user.name, handled_at: new Date(),
+        action: `Status updated to ${statusEnum.replace('_', ' ')}`,
+      }] } : current)
+      setNewStatus(statusEnum)
+      setError(null)
+    } catch (statusError) {
+      console.error('Unable to update helpdesk case:', statusError)
+      setError(statusError instanceof Error ? statusError.message : 'Unable to update status.')
+    }
+  }
   if (isLoading) {
     return <div className="p-6">Loading...</div>
   }
 
   if (!caseData) {
-    return <div className="p-6">Case not found</div>
+    return <div className="p-6">{error || 'Case not found'}</div>
   }
 
   const statusColors = {
@@ -153,6 +90,7 @@ export default function CaseDetailPage() {
 
   return (
     <div className="p-6 space-y-6">
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -182,16 +120,16 @@ export default function CaseDetailPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Member</label>
-                <p className="text-foreground">{caseData.memberName}</p>
+                <p className="text-foreground">{caseData.member_name}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Phone</label>
-                  <p className="text-foreground">{caseData.memberPhone}</p>
+                  <p className="text-foreground">{caseData.member_phone}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Email</label>
-                  <p className="text-foreground">{caseData.memberEmail}</p>
+                  <p className="text-foreground">{caseData.member_email}</p>
                 </div>
               </div>
               <div>
@@ -201,11 +139,11 @@ export default function CaseDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Created</label>
-                  <p className="text-sm">{new Date(caseData.createdAt).toLocaleString()}</p>
+                  <p className="text-sm">{new Date(caseData.created_at).toLocaleString()}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Created By</label>
-                  <p className="text-sm">{caseData.createdByName}</p>
+                  <p className="text-sm">{caseData.created_by_name}</p>
                 </div>
               </div>
             </div>

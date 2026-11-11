@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { HelpDeskCase, HelpDeskStatus, UserRole } from '@/lib/types'
+import { HelpDeskCase } from '@/lib/types'
 import { useAuth } from '@/lib/auth-context'
 import { Upload, X } from 'lucide-react'
 
@@ -75,23 +75,11 @@ export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileC
 
     const newCase: Partial<HelpDeskCase> = {
       title: formData.title,
-      memberName: formData.memberName,
-      memberPhone: formData.memberPhone,
-      memberEmail: formData.memberEmail,
+      member_name: formData.memberName,
+      member_phone: formData.memberPhone,
+      member_email: formData.memberEmail,
       description: formData.description,
-      status: HelpDeskStatus.PENDING,
-      handlers: [
-        {
-          userId: user?.id || 'guest',
-          userName: user?.name || 'Guest',
-          handledAt: new Date(),
-          action: 'Filed case'
-        }
-      ],
-      notes: [],
-      documents: formData.documents,
-      createdBy: user?.id || 'guest',
-      createdByName: user?.name || 'Guest'
+      branch_id: user?.branchId ?? formData.branchId,
     }
 
     onSubmit(newCase)

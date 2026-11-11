@@ -31,7 +31,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { sendAdminAssignmentEmail } from '@/services/email-service'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -504,9 +503,6 @@ export default function BranchesPage() {
 
               const { data: { session }, error: sessionError } = await supabase.auth.getSession();
               if (sessionError) throw sessionError;
-              if (session) {
-                await sendAdminAssignmentEmail(supabase, session, admin, updatedBranch);
-              }
 
             } else {
               toast.error("Failed to assign branch admin.");

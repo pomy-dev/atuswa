@@ -6,27 +6,34 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
-import { getAllRoles, getAllPermissions } from '@/lib/utils'
+import { getAllRoles, getAllPermissions } from '@/services/auth-services'
 import { recordActivityLog, canSee } from '@/lib/constants'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
-import { UserRole, HelpDeskCase, HelpDeskStatus, Role, Permission } from '@/lib/types'
+import { HelpDeskCase, HelpDeskStatus, Role, Permission } from '@/lib/types'
 import { FileCaseModal } from '@/components/modals/file-case-modal'
 import { Plus, Users } from 'lucide-react'
 import { useUserIP } from '@/lib/userUserIp'
+import { createHelpdeskCase, deleteHelpdeskCase, getHelpdeskCases } from '@/services/help-desk-service'
 
 export default function HelpdeskPage() {
   const { user } = useAuth()
   const { ip } = useUserIP()
   const router = useRouter()
-  const [cases, setCases] = useState<HelpDeskCase[]>(() =>
-    JSON.parse(localStorage.getItem('helpDeskCases') || '[]').filter((c: HelpDeskCase) =>
-      user?.role === UserRole.SECRETARY_GENERAL || c.branchId === user?.branchId
-    )
-  )
+  const [cases, setCases] = useState<HelpDeskCase[]>([])
   const [showFileModal, setShowFileModal] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [roles, setRoles] = useState<Role[]>([])
   const [permissions, setPermissions] = useState<Permission[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void loadCases().catch((loadError: unknown) => {
+      console.error('Unable to load helpdesk cases:', loadError)
+      if (!cancelled) setError(loadError instanceof Error ? loadError.message : 'Unable to load cases.')
+    })
+    return () => { cancelled = true }
+  }, [user, roles])
 
   useEffect(() => {
     if (!user) return;
@@ -61,6 +68,15 @@ export default function HelpdeskPage() {
     }
   }, [user]);
 
+  const stats = useMemo(() => {
+    return {
+      total: cases.length,
+      pending: cases.filter(c => c.status === HelpDeskStatus.PENDING).length,
+      inProgress: cases.filter(c => c.status === HelpDeskStatus.IN_PROGRESS).length,
+      completed: cases.filter(c => c.status === HelpDeskStatus.COMPLETED).length
+    }
+  }, [cases])
+
   if (canSee(user?.role ?? '', roles.map(role => role.id))) {
     return (
       <div className="p-6">
@@ -73,14 +89,14 @@ export default function HelpdeskPage() {
     )
   }
 
-  const stats = useMemo(() => {
-    return {
-      total: cases.length,
-      pending: cases.filter(c => c.status === HelpDeskStatus.PENDING).length,
-      inProgress: cases.filter(c => c.status === HelpDeskStatus.IN_PROGRESS).length,
-      completed: cases.filter(c => c.status === HelpDeskStatus.COMPLETED).length
-    }
-  }, [cases])
+  const loadCases = async () => {
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const loadedCases = await getHelpdeskCases(supabase)
+    setCases(loadedCases.filter(c =>
+      roles.find((r) => r.name === user?.role) || c.branch_id === user?.branchId
+    ))
+  }
 
   const statusColors: Record<HelpDeskStatus, string> = {
     [HelpDeskStatus.PENDING]: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
@@ -90,43 +106,52 @@ export default function HelpdeskPage() {
 
   const handleFileCase = async (caseData: Partial<HelpDeskCase>) => {
     setIsLoading(true)
+    setError(null)
     try {
-      const newCase: HelpDeskCase = {
-        id: `case_${Date.now()}`,
-        branchId: user!.branchId,
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const newCase = await createHelpdeskCase(supabase, {
+        branch_id: user?.branchId,
+        affiliate_id: null,
         title: caseData.title!,
-        memberName: caseData.memberName!,
-        memberPhone: caseData.memberPhone!,
-        memberEmail: caseData.memberEmail!,
+        member_name: caseData.member_name!,
+        member_phone: caseData.member_phone!,
+        member_email: caseData.member_email!,
         description: caseData.description!,
-        status: caseData.status!,
-        handlers: caseData.handlers!,
+      })
+      setCases(current => [{
+        ...newCase,
+        handlers: [],
         documents: [],
         notes: [],
-        createdBy: caseData.createdBy!,
-        createdByName: caseData.createdByName!,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-
-      const allCases = JSON.parse(localStorage.getItem('helpDeskCases') || '[]')
-      const updated = [...allCases, newCase]
-      localStorage.setItem('helpDeskCases', JSON.stringify(updated))
-      setCases([...cases, newCase])
+        created_at: new Date(newCase.created_at),
+        updated_at: new Date(newCase.updated_at),
+      } as HelpDeskCase, ...current])
       setShowFileModal(false)
+    } catch (submitError) {
+      console.error('Unable to file helpdesk case:', submitError)
+      setError(submitError instanceof Error ? submitError.message : 'Unable to file case.')
     } finally {
       setIsLoading(false)
+      await loadCases()
     }
   }
 
-  const handleDelete = (id: string) => {
-    const allCases = JSON.parse(localStorage.getItem('helpDeskCases') || '[]')
-    const updated = allCases.filter((c: HelpDeskCase) => c.id !== id)
-    localStorage.setItem('helpDeskCases', JSON.stringify(updated))
-    const caseDeleted = allCases.find((c: HelpDeskCase) => c.id === id)?.title
-
-    recordActivityLog('Delete', `Deleted case - ${caseDeleted}`, user?.id, user?.name, ip!)
-    setCases(cases.filter(c => c.id !== id))
+  const handleDelete = async (id: string) => {
+    const caseDeleted = cases.find(c => c.id === id)?.title
+    try {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      await deleteHelpdeskCase(supabase, id)
+      recordActivityLog('Delete', `Deleted case - ${caseDeleted}`, user?.id, user?.name, ip!)
+      setCases(current => current.filter(c => c.id !== id))
+      setError(null)
+    } catch (deleteError) {
+      console.error('Unable to delete helpdesk case:', deleteError)
+      setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete case.')
+    } finally {
+      await loadCases()
+    }
   }
 
   return (
@@ -141,6 +166,8 @@ export default function HelpdeskPage() {
           File New Case
         </Button>
       </div>
+
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
@@ -211,8 +238,8 @@ export default function HelpdeskPage() {
                       </Badge>
                     </div>
                     <div className="text-sm text-muted-foreground space-y-1 mb-4">
-                      <p>Member: {caseItem.memberName}</p>
-                      <p>Phone: {caseItem.memberPhone}</p>
+                      <p>Member: {caseItem.member_name}</p>
+                      <p>Phone: {caseItem.member_phone}</p>
                       <p className="mt-2 line-clamp-2">{caseItem.description}</p>
                     </div>
 
@@ -222,7 +249,7 @@ export default function HelpdeskPage() {
                       <div className="flex items-center gap-2">
                         {caseItem.handlers?.map((handler, idx) => (
                           <span key={idx} className="text-xs bg-secondary/50 px-2 py-1 rounded">
-                            {handler.userName}
+                            {handler.user_name}
                           </span>
                         ))}
                       </div>
@@ -230,7 +257,7 @@ export default function HelpdeskPage() {
 
                     {/* Meta Info */}
                     <div className="text-xs text-muted-foreground">
-                      <p>Filed by: {caseItem.createdByName} · {new Date(caseItem.createdAt).toLocaleDateString()}</p>
+                      <p>Filed by: {caseItem.created_by_name} · {new Date(caseItem.created_at).toLocaleDateString()}</p>
                     </div>
                   </div>
                   <Button
