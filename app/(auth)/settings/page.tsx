@@ -8,20 +8,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/lib/auth-context'
 import {
-  User,
-  Mail,
-  Building2,
-  Calendar,
-  Lock,
-  Activity,
-  Clock,
-  Shield,
-  CheckCircle2,
-  AlertCircle,
-  Info,
+  User, Mail, Building2, Calendar, Lock, Activity, Clock, Shield, CheckCircle2,
+  AlertCircle, Info,
 } from 'lucide-react'
+import { Role, Permission } from '@/lib/types'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { recordActivityLog } from '@/lib/constants'
+import { getAllRoles, getAllPermissions } from '@/services/auth-services'
 import { useUserIP } from '@/lib/userUserIp'
+import { getUserActivityLogs } from '@/services/auth-services'
 
 export default function SettingsPage() {
   const { user, updatePassword } = useAuth()
@@ -37,14 +32,101 @@ export default function SettingsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [activityLogs, setActivityLogs] = useState<any[]>([])
 
+  const [roles, setRoles] = useState<Role[]>([])
+  const [permissions, setPermissions] = useState<Permission[]>([])
+  const [myAccesses, setMyAccesses] = useState<any>(null)
+
   useEffect(() => {
-    const logs = JSON.parse(localStorage.getItem(`activity_logs_${user?.id}`) || '[]')
-    setActivityLogs(
-      logs.sort(
-        (a: any, b: any) =>
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    let cancelled = false
+
+    const getMyActivityLogs = async () => {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession()
+
+      const logs = await getUserActivityLogs(supabase, session, user!.id)
+      setActivityLogs(
+        logs.sort(
+          (a: any, b: any) =>
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        )
       )
-    )
+    }
+
+    const loadRolesAndPermissions = async () => {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession()
+      if (error) throw error
+      if (!session) return
+
+      const [loadedRoles, loadedPermissions] = await Promise.all([
+        getAllRoles(supabase, session),
+        getAllPermissions(supabase, session),
+      ])
+
+      if (!cancelled) {
+        setRoles(loadedRoles ?? [])
+        setPermissions(loadedPermissions ?? [])
+      }
+    }
+
+    // const loadUsersAndActivityLogs = async () => {
+    //   const supabase = getSupabaseBrowserClient()
+    //   if (!supabase) throw new Error('Supabase is not configured.')
+    //   const {
+    //     data: { session },
+    //     error,
+    //   } = await supabase.auth.getSession()
+    //   if (error) throw error
+    //   if (!session) return
+
+    //   const loadedUsers = await getAllUsersWithRoles(supabase, session)
+    //   const usersList = loadedUsers ?? []
+    //   const loadedLogs = await getActivityLogs(supabase, session)
+    //   const usersById = new Map(usersList.map((loadedUser) => [loadedUser.id, loadedUser.full_name]))
+
+    //   const logsWithUserNames = (loadedLogs ?? []).map(
+    //     (log: ActivityLogEntry & { user_id?: string }) => {
+    //       const logUserId = log.userId ?? log.user_id
+    //       return {
+    //         ...log,
+    //         user_name:
+    //           (logUserId && usersById.get(logUserId)) ??
+    //           log.user_name ??
+    //           'Unknown user',
+    //       }
+    //     }
+    //   )
+
+    //   if (!cancelled) {
+    //     setUsers(usersList)
+    //     setLogs(logsWithUserNames)
+    //   }
+    // }
+
+    void loadRolesAndPermissions().catch((error: unknown) => {
+      console.error('Unable to load roles and permissions:', error)
+    })
+    // void loadUsersAndActivityLogs().catch((error: unknown) => {
+    //   console.error('Unable to load users and logs:', error)
+    // })
+    void getMyActivityLogs().catch((error: unknown) => {
+      console.error('Unable to load activity logs:', error)
+    });
+    void getRoleModules();
+
+    return () => {
+      cancelled = true
+    }
   }, [user])
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -112,30 +194,10 @@ export default function SettingsPage() {
   }
 
   const getRoleModules = () => {
-    switch (user?.role) {
-      case 'sg':
-        return [
-          'Dashboard',
-          'Branches',
-          'Board Members',
-          'Members',
-          'Financial',
-          'Projects',
-          'Events',
-          'Helpdesk',
-          'E-Filing',
-        ]
-      case 'branch_admin':
-        return ['Dashboard', 'Members', 'Projects', 'Events', 'Helpdesk', 'E-Filing']
-      case 'treasurer':
-        return ['Dashboard', 'Financial', 'Helpdesk']
-      case 'project_coordinator':
-        return ['Dashboard', 'Projects', 'E-Filing']
-      case 'events_manager':
-        return ['Dashboard', 'Events']
-      default:
-        return []
-    }
+    const myRole = roles.find((r) => r.name === user?.role)
+    const mySystemAccesses = myRole?.accesses
+    setMyAccesses(mySystemAccesses);
+    return mySystemAccesses;
   }
 
   return (
@@ -355,16 +417,16 @@ export default function SettingsPage() {
                     Accessible Modules
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {getRoleModules().map((module) => (
+                    {myAccesses?.map((access: any, idx: number) => (
                       <Badge
-                        key={module}
+                        key={idx}
                         variant="outline"
                         className="font-normal text-xs"
                       >
-                        {module}
+                        {access}
                       </Badge>
                     ))}
-                    {getRoleModules().length === 0 && (
+                    {myAccesses?.length === 0 && (
                       <p className="text-sm text-muted-foreground">No modules assigned</p>
                     )}
                   </div>
