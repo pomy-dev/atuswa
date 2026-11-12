@@ -103,12 +103,48 @@ create table if not exists public.financial_records(
   id text primary key default gen_random_uuid():: text,
   branch_id text references public.branches(id) on delete set null,
   affiliate_id text references public.affiliates(id) on delete set null,
+  member_id text references public.members(id) on delete set null,
   transaction_type text not null check(transaction_type in ('income', 'expense')),
   amount numeric(14, 2) not null check(amount >= 0),
   source text check(source in ('grant', 'salary', 'loan', 'subscription', 'other')),
   category text check(category in ('utilities', 'mortgage', 'equipment', 'travel', 'other')),
   description text not null default '', transaction_date date not null default current_date,
+  receipt_url text,
   created_by uuid references public.profiles(id) on delete set null, created_at timestamptz not null default now()
+);
+alter table public.financial_records add column if not exists member_id text references public.members(id) on delete set null;
+alter table public.financial_records add column if not exists receipt_url text;
+
+insert into storage.buckets (id, name, public)
+values ('financial', 'financial', false)
+on conflict (id) do update set public = false;
+
+drop policy if exists "Internal users can read financial receipts" on storage.objects;
+create policy "Internal users can read financial receipts" on storage.objects
+for select to authenticated using (
+  bucket_id = 'financial' and exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.affiliate_id is null
+      and p.role in ('sg','branch_admin','treasurer','project_coordinator','events_manager')
+  )
+);
+drop policy if exists "Internal users can upload financial receipts" on storage.objects;
+create policy "Internal users can upload financial receipts" on storage.objects
+for insert to authenticated with check (
+  bucket_id = 'financial' and exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.affiliate_id is null
+      and p.role in ('sg','branch_admin','treasurer','project_coordinator','events_manager')
+  )
+);
+drop policy if exists "Internal users can delete financial receipts" on storage.objects;
+create policy "Internal users can delete financial receipts" on storage.objects
+for delete to authenticated using (
+  bucket_id = 'financial' and exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.affiliate_id is null
+      and p.role in ('sg','branch_admin','treasurer','project_coordinator','events_manager')
+  )
 );
 
 create table if not exists public.projects(

@@ -19,7 +19,7 @@ import { MemberRecordModal } from '@/components/modals/member-record-modal'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { canSee, recordActivityLog } from '@/lib/constants'
 import { useUserIP } from '@/lib/userUserIp'
-import { getAllRoles, getAllPermissions } from '@/lib/utils'
+import { getAllRoles, getAllPermissions } from '@/services/auth-services'
 
 const statusStyles: Record<AffiliateStatus, string> = { Active: 'bg-emerald-100 text-emerald-800', Provisional: 'bg-amber-100 text-amber-800', Suspended: 'bg-orange-100 text-orange-800', Expelled: 'bg-red-100 text-red-800', Withdrawn: 'bg-slate-100 text-slate-700' }
 const financialStyles: Record<FinancialStanding, string> = { 'Good standing': 'bg-emerald-100 text-emerald-800', Arrears: 'bg-amber-100 text-amber-800', Suspended: 'bg-red-100 text-red-800' }

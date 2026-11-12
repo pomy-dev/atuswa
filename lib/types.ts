@@ -170,6 +170,71 @@ export interface Member {
   joinDate: Date
 }
 
+// Extend these according to your actual data model
+export type ScopeType = 'tucoswa' | 'branch' | 'affiliate' | 'member'
+
+export interface ScopeOption {
+  id: string
+  name: string
+  type: ScopeType
+}
+
+export interface FinancialRecordPayload {
+  id: string
+  type: 'income' | 'expense'
+  amount: number
+  category: string
+  description: string
+  date: Date
+  source?: IncomeSource
+  branch_id?: string
+  affiliate_id?: string
+  member_id?: string
+  evidence_file?: File | null
+  evidence_name?: string
+  created_by: string
+  receipt_url?: string
+}
+
+export type FinancialRecordInput = Omit<FinancialRecordPayload, 'id'> & { id?: string }
+
+export interface AddFinancialModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSubmit: (record: FinancialRecordInput) => void | Promise<void>
+  isLoading?: boolean
+  /** Pass true when the current user is HQ (Secretary General / Accountant) */
+  isHQ?: boolean
+  /** Optional lists – replace with real data from your services */
+  branches?: Branch[]
+  affiliates?: ScopeOption[]
+  members?: ScopeOption[]
+  userId: string
+  /** Pre-select a branch (e.g. when drilling down from a body card) */
+  defaultBranchId?: string
+}
+
+export const categories = {
+  income: [
+    'Member Dues',
+    'Donations',
+    'Grants',
+    'Events Revenue',
+    'Sponsorships',
+    'Other Income',
+  ],
+  expense: [
+    'Salaries',
+    'Utilities',
+    'Office Supplies',
+    'Events',
+    'Travel',
+    'Legal & Professional',
+    'Equipment',
+    'Other Expenses',
+  ],
+}
+
 // Financial Types
 export enum TransactionType {
   INCOME = 'income',
@@ -199,9 +264,41 @@ export interface FinancialRecord {
   amount: number
   source?: IncomeSource
   category?: ExpenseCategory
+  receipt_url?: string
   description: string
   date: Date
   createdBy: string
+}
+
+export interface FinancialPayment {
+  id: string;
+  financial_record_id: string;
+  amount: number;
+  payment_date: string;
+  payment_method: string;
+  reference: string | null;
+  notes: string | null;
+  receipt_url: string;
+  received_by: string | null;
+  created_at: string;
+}
+
+export interface FinancialPaymentInput {
+  financial_record_id: string;
+  amount: number;
+  payment_date?: string;
+  payment_method: string;
+  reference?: string | null;
+  notes?: string | null;
+}
+
+export interface FinancialRecordFilters {
+  branch_id?: string;
+  affiliate_id?: string;
+  member_id?: string;
+  transaction_type?: TransactionType;
+  start_date?: string;
+  end_date?: string;
 }
 
 // Project Types
