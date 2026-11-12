@@ -49,10 +49,11 @@ export default function SettingsPage() {
       } = await supabase.auth.getSession()
 
       const logs = await getUserActivityLogs(supabase, session, user!.id)
+      // console.log(logs)
       setActivityLogs(
         logs.sort(
           (a: any, b: any) =>
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         )
       )
     }
@@ -79,46 +80,9 @@ export default function SettingsPage() {
       }
     }
 
-    // const loadUsersAndActivityLogs = async () => {
-    //   const supabase = getSupabaseBrowserClient()
-    //   if (!supabase) throw new Error('Supabase is not configured.')
-    //   const {
-    //     data: { session },
-    //     error,
-    //   } = await supabase.auth.getSession()
-    //   if (error) throw error
-    //   if (!session) return
-
-    //   const loadedUsers = await getAllUsersWithRoles(supabase, session)
-    //   const usersList = loadedUsers ?? []
-    //   const loadedLogs = await getActivityLogs(supabase, session)
-    //   const usersById = new Map(usersList.map((loadedUser) => [loadedUser.id, loadedUser.full_name]))
-
-    //   const logsWithUserNames = (loadedLogs ?? []).map(
-    //     (log: ActivityLogEntry & { user_id?: string }) => {
-    //       const logUserId = log.userId ?? log.user_id
-    //       return {
-    //         ...log,
-    //         user_name:
-    //           (logUserId && usersById.get(logUserId)) ??
-    //           log.user_name ??
-    //           'Unknown user',
-    //       }
-    //     }
-    //   )
-
-    //   if (!cancelled) {
-    //     setUsers(usersList)
-    //     setLogs(logsWithUserNames)
-    //   }
-    // }
-
     void loadRolesAndPermissions().catch((error: unknown) => {
       console.error('Unable to load roles and permissions:', error)
     })
-    // void loadUsersAndActivityLogs().catch((error: unknown) => {
-    //   console.error('Unable to load users and logs:', error)
-    // })
     void getMyActivityLogs().catch((error: unknown) => {
       console.error('Unable to load activity logs:', error)
     });
@@ -127,7 +91,7 @@ export default function SettingsPage() {
     return () => {
       cancelled = true
     }
-  }, [user])
+  }, [user, roles, myAccesses])
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -197,7 +161,6 @@ export default function SettingsPage() {
     const myRole = roles.find((r) => r.name === user?.role)
     const mySystemAccesses = myRole?.accesses
     setMyAccesses(mySystemAccesses);
-    return mySystemAccesses;
   }
 
   return (
@@ -473,7 +436,7 @@ export default function SettingsPage() {
                           )}
                           <p className="text-[11px] text-muted-foreground/80 flex items-center gap-1.5 pt-0.5">
                             <Clock className="w-3 h-3" />
-                            {new Date(log.timestamp).toLocaleString(undefined, {
+                            {new Date(log.created_at).toLocaleString(undefined, {
                               dateStyle: 'medium',
                               timeStyle: 'short',
                             })}

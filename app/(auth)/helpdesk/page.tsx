@@ -12,6 +12,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { HelpDeskCase, HelpDeskStatus, Role, Permission } from '@/lib/types'
 import { FileCaseModal } from '@/components/modals/file-case-modal'
 import { Plus, Users } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
 import { useUserIP } from '@/lib/userUserIp'
 import { createHelpdeskCase, deleteHelpdeskCase, getHelpdeskCases } from '@/services/help-desk-service'
 
@@ -92,10 +93,17 @@ export default function HelpdeskPage() {
   const loadCases = async () => {
     const supabase = getSupabaseBrowserClient()
     if (!supabase) throw new Error('Supabase is not configured.')
-    const loadedCases = await getHelpdeskCases(supabase)
-    setCases(loadedCases.filter(c =>
-      roles.find((r) => r.name === user?.role) || c.branch_id === user?.branchId
-    ))
+    try {
+      setIsLoading(true)
+      const loadedCases = await getHelpdeskCases(supabase)
+      setCases(loadedCases.filter(c =>
+        roles.find((r) => r.name === user?.role) || c.branch_id === user?.branchId
+      ))
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const statusColors: Record<HelpDeskStatus, string> = {
@@ -215,7 +223,13 @@ export default function HelpdeskPage() {
 
       {/* Cases List */}
       <div className="space-y-4">
-        {cases.length === 0 ? (
+        {isLoading ? (
+          <Card>
+            <CardContent className="flex flex-wrap pt-6 items-center justify-center text-muted-foreground">
+              <Spinner className='h-6 w-6' />{"  "}Loading...
+            </CardContent>
+          </Card>
+        ) : (!isLoading && cases.length === 0) ? (
           <Card>
             <CardContent className="pt-6 text-center text-muted-foreground">
               No cases found

@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: user.email,
       password: currentPassword
     })
-    if (verifyError) throw new Error('Current password is incorrect.')
+    if (verifyError) throw new Error(`Failed to update password: ${verifyError}`)
 
     const { error } = await client.auth.updateUser({ password: newPassword })
     if (error) throw error

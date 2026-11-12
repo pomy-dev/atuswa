@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
-import { getAllPermissions, getAllRoles } from '@/lib/utils'
+import { getAllPermissions, getAllRoles } from '@/services/auth-services'
 import { canSee, recordActivityLog } from '@/lib/constants'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { AddFinancialModal } from '@/components/modals/add-financial-modal'
