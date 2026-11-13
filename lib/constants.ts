@@ -154,3 +154,37 @@ export const recordActivityLog = async (action: string, details: string, userId?
 
   await createActivityLog(supabase, session, activityPayload)
 }
+
+export function getDaysLeft(date: Date | string) {
+  const eventDate = new Date(date)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  eventDate.setHours(0, 0, 0, 0)
+  return Math.ceil((eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+export function formatDaysLeft(date: Date | string) {
+  const days = getDaysLeft(date)
+  if (days < 0) return `${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago`
+  if (days === 0) return 'Today'
+  if (days === 1) return '1 day left'
+  return `${days} days left`
+}
+
+export function getMonthKey(date: Date | string) {
+  const d = new Date(date)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+export function getMonthLabel(key: string) {
+  const [year, month] = key.split('-')
+  return new Date(Number(year), Number(month) - 1, 1).toLocaleString('default', {
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+export function currentMonthKey() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}

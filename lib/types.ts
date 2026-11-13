@@ -374,35 +374,89 @@ export interface Project {
 
 // Event Types
 export interface EventFile {
-  id?: string
-  name?: string
-  url?: string
-  type?: 'image' | 'pdf'
-  uploadedAt?: Date
+  id: string;
+  event_id: string;
+  file_kind: "image" | "document";
+  name: string;
+  url: string | null;
+  mime_type: string | null;
+  uploaded_at: string;
 }
 
 export interface EventInvitation {
-  id: string
-  email?: string
-  phone?: string
-  name: string
-  status: 'invited' | 'accepted' | 'declined'
-  sentAt: Date
+  id: string;
+  event_id: string;
+  email: string | null;
+  phone: string | null;
+  name: string;
+  status: "invited" | "accepted" | "declined";
+  sent_at: Date;
 }
 
+export interface BulkEventInvitation {
+  event_id: string;
+  invitations: {
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+  }[];
+}
+
+export type EventStatus = 'draft' | 'published' | 'cancelled'
+
 export interface Event {
-  id: string
-  branchId: string
-  title: string
-  notes: string
-  date: Date
-  location: string
-  stakeholders: string[]
-  images: EventFile[]
-  documents: EventFile[]
-  invitations: EventInvitation[]
-  createdBy: string
-  createdAt: Date
+  id: string;
+  branch_id?: string | null;
+  affiliate_id?: string | null;
+  title: string;
+  notes: string;
+  event_date: string;
+  location: string;
+  stakeholders?: string[]
+  images?: EventFile[]
+  documents?: EventFile[]
+  invitations?: EventInvitation[]
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventParticipant {
+  id: string;
+  event_id: string;
+  profile_id: string | null;
+  invitation_id: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  registration_status: "registered" | "cancelled";
+  registered_at: string;
+  created_at: string;
+}
+
+export type AttendanceStatus =
+  | "pending"
+  | "present"
+  | "absent"
+  | "late"
+  | "excused";
+
+
+export interface EventAttendance {
+  id: string;
+  participant_id: string;
+  attendance_status: AttendanceStatus;
+  notes: string;
+  marked_by: string | null;
+  marked_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspaceEvent extends Event {
+  status?: EventStatus
+  branchName?: string
+  attendance?: EventAttendance[]
 }
 
 // Helpdesk Types

@@ -1,52 +1,77 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useEffect, useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuth } from '@/lib/auth-context'
-import { UserRole, Event, EventInvitation, Role, Permission, Stakeholder } from '@/lib/types'
-import { canSee } from '@/lib/constants'
-import { Plus, Trash2, Calendar, MapPin, Upload, X, Users, Share2, Mail, MessageCircle } from 'lucide-react'
+import {
+  UserRole, EventInvitation, Role, Permission, Stakeholder, WorkspaceEvent,
+  Event
+} from '@/lib/types'
+import { toast } from 'sonner'
+import {
+  Plus, Trash2, Calendar, MapPin, Upload, X, Users, Share2,
+  Mail, MessageCircle,
+} from 'lucide-react'
 import Twitter from '@/public/twitter.png'
 import Facebook from '@/public/facebook.png'
 import { EventInviteModal } from '@/components/modals/event-invite-modal'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
-import { getAllPermissions, getAllRoles } from '@/lib/utils'
-import { recordActivityLog } from '@/lib/constants'
+import { getAllPermissions, getAllRoles } from '@/services/auth-services'
+import {
+  getEvents, deleteEvent, createEvent, getEventFiles, getEventInvitations, createBulkEventInvitations, uploadEventFile
+} from '@/services/events-service'
+import { getAllBranches } from '@/services/branch-service'
 import { useUserIP } from '@/lib/userUserIp'
-
-interface EventImage {
-  url: string;
-  caption?: string;
-}
-
-interface EventFile {
-  url: string;
-  name: string;
-  caption?: string;
-}
+import { cn } from '@/lib/utils'
+import {
+  canSee,
+  getDaysLeft, formatDaysLeft, getMonthKey, getMonthLabel,
+  currentMonthKey, recordActivityLog
+} from '@/lib/constants'
+import { Spinner } from '@/components/ui/spinner'
 
 export default function EventsPage() {
   const { user } = useAuth()
   const { ip } = useUserIP()
-  const [events, setEvents] = useState<Event[]>([])
-  const [showForm, setShowForm] = useState(false)
-  const [sortBy, setSortBy] = useState<'name' | 'date'>('date')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
-  const [filterBranch, setFilterBranch] = useState<string | null>('all')
-  const [branches, setBranches] = useState<any[]>([])
+  const router = useRouter()
 
-  // Form Data
+  const [events, setEvents] = useState<WorkspaceEvent[]>([])
+  const [showForm, setShowForm] = useState(false)
+  const [branches, setBranches] = useState<any[]>([])
+  const [roles, setRoles] = useState<Role[]>([])
+  const [permissions, setPermissions] = useState<Permission[]>([])
+
+  const [showCurrentMonthOnly, setShowCurrentMonthOnly] = useState(true)
+  const [showOlderEvents, setShowOlderEvents] = useState(false)
+
   const [formData, setFormData] = useState({
     title: '',
     notes: '',
     date: '',
     location: '',
+    branchId: '',
   })
 
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([])
@@ -57,66 +82,94 @@ export default function EventsPage() {
     previewUrl: '' as string,
   })
 
-  const [images, setImages] = useState<EventImage[]>([])
+  const [images, setImages] = useState<{ file: File; caption?: string }[]>([])
   const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imageCaption, setImageCaption] = useState<string>('')
-  const [files, setFiles] = useState<EventFile[]>([])
+  const [imageCaption, setImageCaption] = useState('')
+  const [files, setFiles] = useState<{ file: File; name: string; caption?: string }[]>([])
   const [fileFile, setFileFile] = useState<File | null>(null)
-  const [fileCaption, setFileCaption] = useState<string>('')
+  const [fileCaption, setFileCaption] = useState('')
 
+  const [isLoading, setIsLoading] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
-
-  const [roles, setRoles] = useState<Role[]>([])
-  const [permissions, setPermissions] = useState<Permission[]>([])
-
   const [isInviting, setIsInviting] = useState(false)
 
-  // Load events and branches
+  const isSecretaryGeneral = user?.role === 'Secretary General' || user?.role === 'Branch Admin'
+
   useEffect(() => {
     if (!user) return
-
     let cancelled = false
 
     const loadRolesAndPermissions = async () => {
       const supabase = getSupabaseBrowserClient()
       if (!supabase) throw new Error('Supabase is not configured.')
-
       const { data: { session }, error } = await supabase.auth.getSession()
       if (error) throw error
       if (!session) return
-
       const [loadedRoles, loadedPermissions] = await Promise.all([
         getAllRoles(supabase, session),
         getAllPermissions(supabase, session),
       ])
-
       if (!cancelled) {
         setRoles(loadedRoles ?? [])
         setPermissions(loadedPermissions ?? [])
       }
     }
 
-    void loadRolesAndPermissions().catch((error: unknown) => {
-      console.error('Unable to load roles and permissions:', error)
-    })
-
-    const allEvents: Event[] = JSON.parse(localStorage.getItem('events') || '[]')
-    const filtered = allEvents.filter((e: Event) =>
-      user.role === UserRole.SECRETARY_GENERAL || e.branchId === user.branchId
-    )
-    setEvents(filtered)
-
-    const storedBranches = JSON.parse(localStorage.getItem('branches') || '[]')
-    setBranches(storedBranches)
-
-    return () => {
-      cancelled = true
+    const loadAllBranches = async () => {
+      try {
+        const supabase = getSupabaseBrowserClient()
+        if (!supabase) throw new Error('Supabase is not configured.')
+        const branches = await getAllBranches(supabase);
+        const normalized = branches.map((b: any) => ({
+          ...b,
+          name: b.branch_name,
+          isActive: b.is_active,
+          contactEmail: b.contact_email,
+          adminId: b.admin_id ?? b.adminId,
+          createdAt: b.created_at ? new Date(b.created_at) : new Date(),
+        }))
+        if (!cancelled) setBranches(normalized)
+      } catch (error) {
+        console.error('Error fetching branches:', error)
+      }
     }
-  }, [user])
 
-  // Permission check
-  if (canSee(user?.role ?? '', roles.map(role => role.id))) {
+    void loadAllBranches().catch(console.error)
+
+    void loadRolesAndPermissions().catch(console.error)
+
+    void loadAllEvents().catch(console.error)
+
+
+    if (!isSecretaryGeneral && user.branchId) {
+      setFormData((prev) => ({ ...prev, branchId: user.branchId }))
+    }
+
+    return () => { cancelled = true }
+  }, [user, isSecretaryGeneral])
+
+  const loadAllEvents = async () => {
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase) throw new Error('Supabase is not configured.')
+    try {
+      setIsLoading(true)
+      const allEvents = await getEvents(supabase);
+      const visible = allEvents.filter((e) => isSecretaryGeneral || e.branch_id === user?.branchId)
+      console.log(visible)
+      const hydrated = await Promise.all(visible.map(async (event) => {
+        const [attachments, invitations] = await Promise.all([getEventFiles(supabase, event.id), getEventInvitations(supabase, event.id)])
+        return { ...event, images: attachments.filter((file) => file.file_kind === 'image'), documents: attachments.filter((file) => file.file_kind === 'document'), invitations }
+      }))
+      setEvents(hydrated)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (canSee(user?.role ?? '', roles.map((r) => r.id))) {
     return (
       <div className="p-6">
         <Card>
@@ -128,18 +181,53 @@ export default function EventsPage() {
     )
   }
 
-  // Handle image preview before adding stakeholder
+  // ── helpers ──
+  const getStatusBadge = (event: WorkspaceEvent) => {
+    const status = event.status || (getDaysLeft(event.event_date) >= 0 ? 'published' : 'draft')
+    if (status === 'cancelled') return <Badge variant="destructive">Cancelled</Badge>
+    if (status === 'draft') return <Badge variant="secondary">Draft</Badge>
+    const days = getDaysLeft(event.event_date)
+    if (days < 0) return <Badge variant="outline">Past</Badge>
+    if (days === 0) return <Badge className="bg-amber-500 hover:bg-amber-600">Today</Badge>
+    return <Badge className="bg-emerald-600 hover:bg-emerald-700">Upcoming</Badge>
+  }
+
+  const currentMonthEvents = useMemo(() => {
+    const key = currentMonthKey()
+    return events
+      .filter((e) => getMonthKey(e.created_at || e.event_date) === key)
+      .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
+  }, [events])
+
+  const olderEventsByMonth = useMemo(() => {
+    const key = currentMonthKey()
+    const older = events.filter((e) => getMonthKey(e.created_at || e.event_date) !== key)
+    const groups: Record<string, WorkspaceEvent[]> = {}
+    older.forEach((e) => {
+      const mk = getMonthKey(e.created_at || e.event_date)
+      if (!groups[mk]) groups[mk] = []
+      groups[mk].push(e)
+    })
+    return Object.entries(groups)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([monthKey, list]) => ({
+        monthKey,
+        label: getMonthLabel(monthKey),
+        events: list.sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime()),
+      }))
+  }, [events])
+
+  const displayedGridEvents = showCurrentMonthOnly ? currentMonthEvents : events
+
+  // ── form helpers (images / files / stakeholders) ──
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
-    const previewUrl = URL.createObjectURL(file)
-    setNewStakeholder(prev => ({ ...prev, imageFile: file, previewUrl }))
+    setNewStakeholder((prev) => ({ ...prev, imageFile: file, previewUrl: URL.createObjectURL(file) }))
   }
 
   const addStakeholder = async () => {
     if (!newStakeholder.name.trim() || !newStakeholder.profession.trim()) return
-
     let imageUrl = ''
     if (newStakeholder.imageFile) {
       imageUrl = await new Promise<string>((resolve) => {
@@ -148,295 +236,484 @@ export default function EventsPage() {
         reader.readAsDataURL(newStakeholder.imageFile!)
       })
     }
-
-    const stakeholder: Stakeholder = {
-      id: `sh_${Date.now()}`,
-      name: newStakeholder.name.trim(),
-      profession: newStakeholder.profession.trim(),
-      image: imageUrl || undefined,
-    }
-
-    setStakeholders([...stakeholders, stakeholder])
-
-    // Reset new stakeholder
+    setStakeholders([
+      ...stakeholders,
+      {
+        id: `sh_${Date.now()}`,
+        name: newStakeholder.name.trim(),
+        profession: newStakeholder.profession.trim(),
+        image: imageUrl || undefined,
+      },
+    ])
     setNewStakeholder({ name: '', profession: '', imageFile: null, previewUrl: '' })
   }
 
-  const removeStakeholder = (id: string) => {
-    setStakeholders(stakeholders.filter(s => s.id !== id))
-  }
+  const removeStakeholder = (id: string) => setStakeholders(stakeholders.filter((s) => s.id !== id))
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
-    setImageFile(file)
+    if (file) setImageFile(file)
   }
 
   const addImage = async () => {
     if (!imageFile) return
-
-    const imageUrl = await new Promise<string>((resolve) => {
-      const reader = new FileReader()
-      reader.onload = (e) => resolve(e.target?.result as string)
-      reader.readAsDataURL(imageFile)
-    })
-
-    setImages([...images, { url: imageUrl, caption: imageCaption }])
+    setImages([...images, { file: imageFile, caption: imageCaption }])
     setImageFile(null)
     setImageCaption('')
   }
 
-  const removeImage = (index: number) => {
-    setImages(images.filter((_, i) => i !== index))
-  }
+  const removeImage = (index: number) => setImages(images.filter((_, i) => i !== index))
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
-    setFileFile(file)
+    if (file) setFileFile(file)
   }
 
   const addFile = async () => {
     if (!fileFile) return
-
-    const fileUrl = await new Promise<string>((resolve) => {
-      const reader = new FileReader()
-      reader.onload = (e) => resolve(e.target?.result as string)
-      reader.readAsDataURL(fileFile)
-    })
-
-    setFiles([...files, { url: fileUrl, name: fileFile.name, caption: fileCaption }])
+    setFiles([...files, { file: fileFile, name: fileFile.name, caption: fileCaption }])
     setFileFile(null)
     setFileCaption('')
   }
 
-  const removeFile = (index: number) => {
-    setFiles(files.filter((_, i) => i !== index))
-  }
-
-  const handleAddEvent = () => {
-    if (!formData.title || !formData.date || !formData.location) return
-
-    const newEvent: Event = {
-      id: `event_${Date.now()}`,
-      branchId: user!.branchId,
-      title: formData.title,
-      notes: formData.notes,
-      date: new Date(formData.date),
-      location: formData.location,
-      stakeholders: stakeholders.map(s => s.name),
-      images: images.map(img => ({ url: img.url, caption: img.caption })), // Save images with captions
-      documents: files.map(file => ({ url: file.url, name: file.name, caption: file.caption })), // Save files with captions
-      invitations: [],
-      createdBy: user!.id,
-      createdAt: new Date(),
-    }
-
-    const allEvents = JSON.parse(localStorage.getItem('events') || '[]')
-    localStorage.setItem('events', JSON.stringify([...allEvents, newEvent]))
-
-    setEvents([...events, newEvent])
-    resetForm()
-    recordActivityLog('Create', `Initialized a new event - ${newEvent.title}`, user?.id, user?.name, ip!)
-  }
+  const removeFile = (index: number) => setFiles(files.filter((_, i) => i !== index))
 
   const resetForm = () => {
-    setFormData({ title: '', notes: '', date: '', location: '' })
+    setFormData({
+      title: '',
+      notes: '',
+      date: '',
+      location: '',
+      branchId: isSecretaryGeneral ? '' : user?.branchId || '',
+    })
     setStakeholders([])
     setImages([])
     setFiles([])
+    setNewStakeholder({ name: '', profession: '', imageFile: null, previewUrl: '' })
+    setImageFile(null)
+    setImageCaption('')
+    setFileFile(null)
+    setFileCaption('')
     setShowForm(false)
   }
 
-  const handleDelete = (id: string) => {
-    const allEvents = JSON.parse(localStorage.getItem('events') || '[]')
-    localStorage.setItem('events', JSON.stringify(allEvents.filter((e: Event) => e.id !== id)))
+  const handleAddEvent = async () => {
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase) throw new Error('Supabase is not configured.')
 
-    const removedEvent = allEvents.find((ev: Event) => ev.id === id)?.title
-    recordActivityLog('Cancel', `Cancelled event - ${removedEvent}`, user?.id, user?.name, ip!)
+    try {
+      if (!formData.title || !formData.date || !formData.location) return
+      if (isSecretaryGeneral && !formData.branchId) return
 
-    setEvents(events.filter(e => e.id !== id))
+      const branchId = isSecretaryGeneral ? formData.branchId : user!.branchId
+      const createdEvent = await createEvent(supabase, {
+        branch_id: branchId || null,
+        affiliate_id: null,
+        title: formData.title.trim(),
+        notes: formData.notes,
+        event_date: new Date(formData.date).toISOString(),
+        location: formData.location.trim(),
+        stakeholders: stakeholders.map((s) => s.name),
+      }, user!.id)
+      await Promise.all([
+        ...images.map(({ file }) => uploadEventFile(supabase, createdEvent.id, file, 'image')),
+        ...files.map(({ file }) => uploadEventFile(supabase, createdEvent.id, file, 'document')),
+      ])
+      resetForm()
+      toast.success(`Event created.${createdEvent.title}`)
+      recordActivityLog('Create', `Created event - ${createdEvent.title}`, user?.id, user?.name, ip || '')
+    } catch (err) {
+      console.error(err)
+      toast.error(err instanceof Error ? err.message : 'Could not create event.')
+    } finally {
+      await loadAllEvents()
+    }
   }
 
-  const isUpcoming = (date: Date) => new Date(date) > new Date()
+  const handleDelete = async (id: string) => {
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase) throw new Error('Supabase is not configured.')
+    try {
+      await deleteEvent(supabase, id)
+      recordActivityLog('Delete', `Deleted event`, user?.id, user?.name, ip!)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      await loadAllEvents()
+    }
+  }
 
-  const filteredAndSortedEvents = events
-    .filter(e => filterBranch === 'all' || e.branchId === filterBranch)
-    .sort((a, b) => {
-      let comparison = 0
-      if (sortBy === 'name') {
-        comparison = a.title.localeCompare(b.title)
-      } else {
-        comparison = new Date(a.date).getTime() - new Date(b.date).getTime()
-      }
-      return sortOrder === 'asc' ? comparison : -comparison
-    })
-
-  const handleInviteClick = (eventId: string) => {
+  const handleInviteClick = (eventId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation()
     setSelectedEventId(eventId)
     setShowInviteModal(true)
   }
 
-  const handleInviteSuccess = (newInvitations: EventInvitation[], eventId: string) => {
-    if (!newInvitations.length) return
+  const handleEventInvite = async (newInvitations: EventInvitation[], eventId: string) => {
+    if (!newInvitations?.length) return
+
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase) throw new Error('Supabase is not configured.')
 
     try {
       setIsInviting(true)
-      // Update localStorage
-      const allEvents: Event[] = JSON.parse(localStorage.getItem('events') || '[]')
-
-      const updatedEvents = allEvents.map((event: Event) => {
-        if (event.id === eventId) {
-          const currentInvitations = event.invitations || []
-          return {
-            ...event,
-            invitations: [...currentInvitations, ...newInvitations]
-          }
-        }
-        return event
+      await createBulkEventInvitations(supabase, {
+        event_id: eventId,
+        invitations: newInvitations.map(({ name, email, phone }) => ({ name, email, phone })),
       })
-
-      localStorage.setItem('events', JSON.stringify(updatedEvents))
-
-      // Update local state
-      setEvents(prevEvents =>
-        prevEvents.map(event =>
-          event.id === eventId
-            ? { ...event, invitations: [...(event.invitations || []), ...newInvitations] }
-            : event
-        )
-      )
-
-      // Optional: Show success toast/notification
-      // You can replace this with a proper toast library later
-      alert(`✅ ${newInvitations.length} invitation(s) sent successfully!`)
+      toast.success(`${newInvitations.length} invitation(s) saved.`)
     } catch (err) {
-      console.error('Error occurred', err)
+      console.error(err)
+      toast.error(err instanceof Error ? err.message : 'Could not save invitations.')
     } finally {
       setIsInviting(false)
+      await loadAllEvents()
     }
   }
 
+  const getShareText = (event: WorkspaceEvent) =>
+    `Join us for ${event.title} on ${new Date(event.event_date).toLocaleString()} at ${event.location}`
+
+  const shareActions = (event: WorkspaceEvent) => [
+    {
+      label: 'Email',
+      icon: <Mail className="w-4 h-4" />,
+      action: () =>
+        window.open(
+          `mailto:?subject=${encodeURIComponent(event.title)}&body=${encodeURIComponent(getShareText(event))}`,
+          '_blank'
+        ),
+    },
+    {
+      label: 'WhatsApp',
+      icon: <MessageCircle className="w-4 h-4" />,
+      action: () =>
+        window.open(`https://wa.me/?text=${encodeURIComponent(getShareText(event))}`, '_blank'),
+    },
+    {
+      label: 'Facebook',
+      icon: <img src={Facebook.src} alt="" className="w-4 h-4" />,
+      action: () =>
+        window.open(
+          `https://www.facebook.com/sharer/sharer.php?u=${window.location.href}&quote=${encodeURIComponent(getShareText(event))}`,
+          '_blank'
+        ),
+    },
+    {
+      label: 'Twitter / X',
+      icon: <img src={Twitter.src} alt="" className="w-4 h-4" />,
+      action: () =>
+        window.open(
+          `https://twitter.com/intent/tweet?text=${encodeURIComponent(getShareText(event))}`,
+          '_blank'
+        ),
+    },
+    {
+      label: 'SMS',
+      icon: <MessageCircle className="w-4 h-4" />,
+      action: () => window.open(`sms:?body=${encodeURIComponent(getShareText(event))}`, '_blank'),
+    },
+    {
+      label: 'More…',
+      icon: <Share2 className="w-4 h-4" />,
+      action: () => {
+        if (navigator.share) {
+          navigator.share({ title: event.title, text: getShareText(event), url: window.location.href })
+        }
+      },
+    },
+  ]
+
+  // ── render ──
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-8 max-w-7xl mx-auto">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Events</h1>
-          <p className="text-muted-foreground mt-1">Manage union events and gatherings</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Event Workspace</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Plan, publish and manage company events
+          </p>
         </div>
-        <Button onClick={() => setShowForm(true)} className="gap-2">
+        <Button onClick={() => setShowForm(true)} className="gap-2 shadow-sm">
           <Plus className="w-4 h-4" />
           New Event
         </Button>
       </div>
 
-      {/* Filter Controls */}
-      <Card className="bg-muted/30 border-muted">
-        <CardContent className="pt-6">
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className='flex flex-wrap gap-2'>
-              <Label>Sort By</Label>
-              <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'name' | 'date')}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="name">Event Name</SelectItem>
-                  <SelectItem value="date">Event Date</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className='flex flex-wrap gap-2'>
-              <Label>Sort Order</Label>
-              <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as 'asc' | 'desc')}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="asc">Ascending</SelectItem>
-                  <SelectItem value="desc">Descending</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className='flex flex-wrap gap-2'>
-              <Label>Filter by Branch</Label>
-              <Select value={filterBranch} onValueChange={setFilterBranch}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Branches</SelectItem>
-                  {branches.map(branch => (
-                    <SelectItem key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+      {/* Current month filter */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center space-x-2 rounded-lg border bg-card px-4 py-2.5 shadow-sm">
+          <Checkbox
+            id="current-month"
+            checked={showCurrentMonthOnly}
+            onCheckedChange={(checked) => setShowCurrentMonthOnly(!!checked)}
+          />
+          <Label htmlFor="current-month" className="text-sm font-medium cursor-pointer select-none">
+            {getMonthLabel(currentMonthKey())}
+          </Label>
+          <Badge variant="secondary" className="ml-1 text-xs">
+            {currentMonthEvents.length}
+          </Badge>
+        </div>
+      </div>
+
+      {/* Grid */}
+      {displayedGridEvents.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="py-16 text-center">
+            <Calendar className="w-10 h-10 mx-auto text-muted-foreground/50 mb-3" />
+            <p className="text-muted-foreground text-sm">
+              {events.length === 0
+                ? 'No events yet. Create your first event.'
+                : 'No events in the selected period.'}
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {displayedGridEvents.map((event) => {
+            const inviteCount = event.invitations?.length || 0
+            return (
+              <Card
+                key={event.id}
+                className="group cursor-pointer hover:shadow-md transition-all duration-200 border-border/60 hover:border-border"
+                onClick={() => router.push(`/events/${event.id}`)}
+              >
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-semibold text-sm leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+                      {event.title}
+                    </h3>
+                    {getStatusBadge(event)}
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {new Date(event.event_date).toLocaleDateString(undefined, {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </div>
+                    <p className="text-xs font-medium text-foreground/80">
+                      {formatDaysLeft(event.event_date)}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Users className="w-3.5 h-3.5" />
+                    {inviteCount} invitee{inviteCount === 1 ? '' : 's'}
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger>
+                        <Button variant="outline" size="sm" className="h-8 flex-1 gap-1.5">
+                          <Share2 className="w-3.5 h-3.5" />
+                          Share
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-44">
+                        {shareActions(event).map((item) => (
+                          <DropdownMenuItem key={item.label} onClick={item.action} className="gap-2 text-sm">
+                            {item.icon}
+                            {item.label}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <Button
+                      size="sm"
+                      className="h-8 flex-1 gap-1.5"
+                      onClick={(e) => handleInviteClick(event.id, e)}
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      Invite
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Show Older Events */}
+      {olderEventsByMonth.length > 0 && (
+        <div className="relative py-2">
+          <div className="absolute inset-0 flex items-center" aria-hidden="true">
+            <div className="w-full border-t border-border" />
           </div>
-        </CardContent>
-      </Card>
+          <div className="relative flex justify-center">
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                'bg-background px-6 text-xs font-medium tracking-wide uppercase',
+                'border border-border shadow-none hover:bg-muted/50',
+                showOlderEvents && 'bg-muted'
+              )}
+              onClick={() => setShowOlderEvents((v) => !v)}
+            >
+              {showOlderEvents ? 'Hide Older Events' : 'Show Older Events'}
+            </Button>
+          </div>
+        </div>
+      )}
 
-      {showForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Create New Event</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
+      {showOlderEvents && olderEventsByMonth.length > 0 && (
+        <div className="space-y-8">
+          {olderEventsByMonth.map((group) => (
+            <div key={group.monthKey} className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">
+                {group.label}
+              </h3>
+              <div className="rounded-xl border bg-card divide-y">
+                {group.events.map((event) => {
+                  const initials = event.title
+                    .split(' ')
+                    .map((w) => w[0])
+                    .join('')
+                    .slice(0, 2)
+                    .toUpperCase()
+                  return (
+                    <div
+                      key={event.id}
+                      className="flex items-center gap-4 px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer group"
+                      onClick={() => router.push(`/events/${event.id}`)}
+                    >
+                      <Avatar className="h-10 w-10 shrink-0">
+                        <AvatarFallback className="text-xs font-medium bg-primary/10 text-primary">
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+                          {event.title}
+                        </p>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                          <span className="flex items-center gap-1 truncate">
+                            <MapPin className="w-3 h-3 shrink-0" />
+                            {event.location}
+                          </span>
+                          <span className="flex items-center gap-1 shrink-0">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(event.event_date).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {getStatusBadge(event)}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDelete(event.id)
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ===== CREATE EVENT MODAL ===== */}
+      <Dialog open={showForm} onOpenChange={(open) => {
+        if (!open) resetForm()
+        setShowForm(open)
+      }}>
+        <DialogContent className="max-w-3xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden">
+          {/* Header */}
+          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+            <DialogTitle className="text-xl font-semibold tracking-tight">
+              Create New Event
+            </DialogTitle>
+            <DialogDescription>
+              Fill in the details below. You can add images, files and stakeholders.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
             {/* Event Details */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <Label>Event Title</Label>
+            <div className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="event-title">Event Title</Label>
+                  <Input
+                    id="event-title"
+                    placeholder="Annual General Meeting"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="event-date">Date & Time</Label>
+                  <Input
+                    id="event-date"
+                    type="datetime-local"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="event-location">Location</Label>
                 <Input
-                  placeholder="Annual General Meeting"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  id="event-location"
+                  placeholder="Conference Room"
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 />
               </div>
-              <div>
-                <Label>Date & Time</Label>
-                <Input
-                  type="datetime-local"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+
+              <div className="space-y-1.5">
+                <Label htmlFor="event-notes">Notes</Label>
+                <Textarea
+                  id="event-notes"
+                  placeholder="Event description and additional notes..."
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={3}
                 />
               </div>
-            </div>
-
-            <div>
-              <Label>Location</Label>
-              <Input
-                placeholder="Conference Room"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label>Notes</Label>
-              <Textarea
-                placeholder="Event description and additional notes..."
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={3}
-              />
             </div>
 
             {/* === IMAGES WITH CAPTIONS === */}
-            <div className="border rounded-xl p-5 bg-muted/30">
-              <Label className="text-lg font-semibold mb-4 block">Event Images</Label>
-              <div className="flex gap-3 mb-4 items-end">
-                <div className="flex-1">
-                  <label className="cursor-pointer">
+            <div className="rounded-xl border bg-muted/30 p-5 space-y-4">
+              <div>
+                <Label className="text-base font-semibold">Event Images</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Upload photos with optional captions
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 items-end">
+                <div className="flex-1 w-full">
+                  <label className="cursor-pointer block">
                     <Button
                       type="button"
                       variant="outline"
-                      className="w-full"
+                      className="w-full justify-start"
                       onClick={() => document.getElementById('event-image-upload')?.click()}
                     >
-                      <Upload className="mr-2 h-4 w-4" />
-                      {imageFile ? imageFile.name : 'Upload Image'}
+                      <Upload className="mr-2 h-4 w-4 shrink-0" />
+                      <span className="truncate">
+                        {imageFile ? imageFile.name : 'Choose Image'}
+                      </span>
                     </Button>
                     <input
                       id="event-image-upload"
@@ -448,23 +725,40 @@ export default function EventsPage() {
                   </label>
                 </div>
                 <Input
-                  placeholder="Image Caption (optional)"
+                  placeholder="Caption (optional)"
                   value={imageCaption}
                   onChange={(e) => setImageCaption(e.target.value)}
                   className="flex-1"
                 />
-                <Button onClick={addImage} disabled={!imageFile}>Add Image</Button>
+                <Button onClick={addImage} disabled={!imageFile} className="shrink-0">
+                  Add
+                </Button>
               </div>
 
-              {/* Image Previews */}
               {images.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {images.map((img, idx) => (
-                    <div key={idx} className="border rounded-xl p-4 bg-white">
-                      <img src={img.url} alt={img.caption || "Event Image"} className="w-full h-32 object-cover rounded mb-2" />
-                      {img.caption && <p className="text-sm text-muted-foreground mb-2">{img.caption}</p>}
-                      <Button variant="ghost" size="sm" onClick={() => removeImage(idx)} className="text-destructive">
-                        Remove
+                    <div
+                      key={idx}
+                      className="relative group rounded-xl border bg-background overflow-hidden"
+                    >
+                      <img
+                        src={img.file ? URL.createObjectURL(img.file) : ""}
+                        alt={img.caption || 'Event Image'}
+                        className="w-full h-32 object-cover"
+                      />
+                      {img.caption && (
+                        <p className="px-3 py-1.5 text-xs text-muted-foreground truncate">
+                          {img.caption}
+                        </p>
+                      )}
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => removeImage(idx)}
+                      >
+                        <X className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   ))}
@@ -473,19 +767,27 @@ export default function EventsPage() {
             </div>
 
             {/* === FILES WITH CAPTIONS === */}
-            <div className="border rounded-xl p-5 bg-muted/30">
-              <Label className="text-lg font-semibold mb-4 block">Attached Files</Label>
-              <div className="flex gap-3 mb-4 items-end">
-                <div className="flex-1">
-                  <label className="cursor-pointer">
+            <div className="rounded-xl border bg-muted/30 p-5 space-y-4">
+              <div>
+                <Label className="text-base font-semibold">Attached Files</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Documents, PDFs, etc. with optional captions
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 items-end">
+                <div className="flex-1 w-full">
+                  <label className="cursor-pointer block">
                     <Button
                       type="button"
                       variant="outline"
-                      className="w-full"
+                      className="w-full justify-start"
                       onClick={() => document.getElementById('event-file-upload')?.click()}
                     >
-                      <Upload className="mr-2 h-4 w-4" />
-                      {fileFile ? fileFile.name : 'Upload File'}
+                      <Upload className="mr-2 h-4 w-4 shrink-0" />
+                      <span className="truncate">
+                        {fileFile ? fileFile.name : 'Choose File'}
+                      </span>
                     </Button>
                     <input
                       id="event-file-upload"
@@ -496,23 +798,38 @@ export default function EventsPage() {
                   </label>
                 </div>
                 <Input
-                  placeholder="File Caption (optional)"
+                  placeholder="Caption (optional)"
                   value={fileCaption}
                   onChange={(e) => setFileCaption(e.target.value)}
                   className="flex-1"
                 />
-                <Button onClick={addFile} disabled={!fileFile}>Add File</Button>
+                <Button onClick={addFile} disabled={!fileFile} className="shrink-0">
+                  Add
+                </Button>
               </div>
 
-              {/* File Previews */}
               {files.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {files.map((file, idx) => (
-                    <div key={idx} className="border rounded-xl p-4 bg-white">
-                      <p className="font-semibold text-sm truncate">{file.name}</p>
-                      {file.caption && <p className="text-sm text-muted-foreground mb-2">{file.caption}</p>}
-                      <Button variant="ghost" size="sm" onClick={() => removeFile(idx)} className="text-destructive">
-                        Remove
+                    <div
+                      key={idx}
+                      className="flex items-center gap-3 rounded-xl border bg-background p-3"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{file.name}</p>
+                        {file.caption && (
+                          <p className="text-xs text-muted-foreground truncate">
+                            {file.caption}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive shrink-0"
+                        onClick={() => removeFile(idx)}
+                      >
+                        <X className="h-4 w-4" />
                       </Button>
                     </div>
                   ))}
@@ -520,31 +837,40 @@ export default function EventsPage() {
               )}
             </div>
 
-            {/* === STAKEHOLDERS WITH IMAGE UPLOAD & PREVIEW === */}
-            <div className="border rounded-xl p-5 bg-muted/30">
-              <Label className="text-lg font-semibold mb-4 block">Stakeholders</Label>
+            {/* === STAKEHOLDERS === */}
+            <div className="rounded-xl border bg-muted/30 p-5 space-y-4">
+              <div>
+                <Label className="text-base font-semibold">Stakeholders</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  People involved in the event (with optional photo)
+                </p>
+              </div>
 
-              <div className="flex gap-3 mb-6">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <Input
                   placeholder="Full Name"
                   value={newStakeholder.name}
-                  onChange={(e) => setNewStakeholder({ ...newStakeholder, name: e.target.value })}
+                  onChange={(e) =>
+                    setNewStakeholder({ ...newStakeholder, name: e.target.value })
+                  }
+                  className="flex-1"
                 />
                 <Input
                   placeholder="Profession / Position"
                   value={newStakeholder.profession}
-                  onChange={(e) => setNewStakeholder({ ...newStakeholder, profession: e.target.value })}
+                  onChange={(e) =>
+                    setNewStakeholder({ ...newStakeholder, profession: e.target.value })
+                  }
+                  className="flex-1"
                 />
-
-                <label className="cursor-pointer">
+                <label className="cursor-pointer shrink-0">
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full sm:w-auto"
                     onClick={() => document.getElementById('stakeholder-photo')?.click()}
                   >
                     <Upload className="mr-2 h-4 w-4" />
-                    {newStakeholder.imageFile ? 'Change Photo' : 'Upload Photo'}
+                    {newStakeholder.imageFile ? 'Change' : 'Photo'}
                   </Button>
                   <input
                     id="stakeholder-photo"
@@ -554,255 +880,121 @@ export default function EventsPage() {
                     onChange={handleImageSelect}
                   />
                 </label>
-                <Button onClick={addStakeholder} disabled={!newStakeholder.name || !newStakeholder.profession}>Add Stakeholder</Button>
+                <Button
+                  onClick={addStakeholder}
+                  disabled={!newStakeholder.name.trim() || !newStakeholder.profession.trim()}
+                  className="shrink-0"
+                >
+                  Add
+                </Button>
               </div>
 
-              {/* Current Stakeholder Image Preview */}
+              {/* Preview of selected photo before adding */}
               {newStakeholder.previewUrl && (
-                <div className="mb-6 p-4 border rounded-lg bg-white">
-                  <p className="text-sm text-muted-foreground font-medium mb-3">Selected Photo Preview:</p>
-                  <div className="flex items-center gap-4">
-                    <img
-                      src={newStakeholder.previewUrl}
-                      alt="Preview"
-                      className="w-28 h-28 rounded-2xl object-cover border shadow-md"
-                    />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Ready to add</p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="mt-2 text-red-600 hover:text-red-700"
-                        onClick={() => setNewStakeholder(prev => ({ ...prev, imageFile: null, previewUrl: '' }))}
-                      >
-                        Remove Photo
-                      </Button>
-                    </div>
+                <div className="flex items-center gap-4 p-3 rounded-lg border bg-background">
+                  <img
+                    src={newStakeholder.previewUrl}
+                    alt="Preview"
+                    className="w-16 h-16 rounded-xl object-cover border shadow-sm"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Photo ready</p>
+                    <p className="text-xs text-muted-foreground">
+                      Will be attached when you click Add
+                    </p>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive"
+                    onClick={() =>
+                      setNewStakeholder((prev) => ({
+                        ...prev,
+                        imageFile: null,
+                        previewUrl: '',
+                      }))
+                    }
+                  >
+                    Remove
+                  </Button>
                 </div>
               )}
 
-              {/* Added Stakeholders Preview Grid */}
+              {/* Added stakeholders */}
               {stakeholders.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {stakeholders.map((sh) => (
-                    <div key={sh.id} className="border rounded-xl p-4 flex gap-4 items-center bg-white">
+                    <div
+                      key={sh.id}
+                      className="flex items-center gap-3 rounded-xl border bg-background p-3"
+                    >
                       {sh.image ? (
                         <img
                           src={sh.image}
                           alt={sh.name}
-                          className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
+                          className="w-12 h-12 rounded-full object-cover border"
                         />
                       ) : (
-                        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-3xl">
+                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-xl">
                           👤
                         </div>
                       )}
-                      <div className="flex-1">
-                        <p className="font-semibold text-muted-foreground">{sh.name}</p>
-                        <p className="text-sm text-muted-foreground">{sh.profession}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{sh.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {sh.profession}
+                        </p>
                       </div>
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="h-8 w-8 text-destructive shrink-0"
                         onClick={() => removeStakeholder(sh.id)}
-                        className="text-red-500 hover:bg-red-50"
                       >
-                        <X className="h-5 w-5" />
+                        <X className="h-4 w-4" />
                       </Button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="flex gap-3 pt-4">
-              <Button onClick={handleAddEvent} size="lg">Create Event</Button>
-              <Button variant="outline" size="lg" onClick={resetForm}>Cancel</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          {/* Footer */}
+          <DialogFooter className="px-6 py-4 border-t bg-muted/20 shrink-0 gap-3">
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={resetForm}
+              className="flex-1 sm:flex-none"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="lg"
+              onClick={handleAddEvent}
+              disabled={!formData.title || !formData.date || !formData.location || isLoading}
+              className="flex-1 sm:flex-none"
+            >
+              {isLoading && <Spinner className='h-4 w-4' />} Create Event
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {/* Event lists */}
-      <div className="grid gap-4">
-        {filteredAndSortedEvents.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6 text-center text-muted-foreground">
-              {events.length === 0 ? 'No events found' : 'No events match your filters'}
-            </CardContent>
-          </Card>
-        ) : (
-          filteredAndSortedEvents.map((event) => (
-            <Card key={event.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="pt-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-xl font-semibold">{event.title}</h3>
-                      {isUpcoming(event.date) ? (
-                        <Badge>Upcoming</Badge>
-                      ) : (
-                        <Badge variant="secondary">Past</Badge>
-                      )}
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => handleDelete(event.id)} className="text-destructive">
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="w-4 h-4" />
-                    {new Date(event.date).toLocaleString()}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <MapPin className="w-4 h-4" />
-                    {event.location}
-                  </div>
-                </div>
-
-                {event.notes && <p className="mb-5">{event.notes}</p>}
-
-                {/* Stakeholders Preview */}
-                {event.stakeholders?.length > 0 && (
-                  <div className="mb-6">
-                    <p className="text-xs font-semibold mb-3 flex items-center gap-2">
-                      <Users className="w-4 h-4" /> STAKEHOLDERS ({event.stakeholders.length})
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {event.stakeholders.map((name, i) => (
-                        <Badge key={i} variant="outline" className="text-sm">
-                          {name}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Share Section */}
-                <div className="space-y-3 pt-4 border-t">
-                  <div className="flex items-center gap-2">
-                    <Share2 className="w-4 h-4" />
-                    <span className="text-sm font-semibold">Share Event</span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => {
-                        const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
-                        window.open(`mailto:?subject=${event.title}&body=${text}`, '_blank')
-                      }}
-                      title="Share via Email"
-                    >
-                      <Mail className="w-3 h-3" />
-                      Email
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => {
-                        const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
-                        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
-                      }}
-                      title="Share via WhatsApp"
-                    >
-                      <MessageCircle className="w-3 h-3" />
-                      WhatsApp
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => {
-                        const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
-                        window.open(`https://www.facebook.com/sharer/sharer.php?u=${window.location.href}&quote=${encodeURIComponent(text)}`, '_blank')
-                      }}
-                      title="Share on Facebook"
-                    >
-                      <img src={Facebook.src} alt="F" className="w-3 h-3" />
-                      Facebook
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => {
-                        const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
-                        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
-                      }}
-                      title="Share on Twitter"
-                    >
-                      <img src={Twitter.src} alt="X" className='w-3 h-3' />
-                      Twitter
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => {
-                        const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
-                        window.open(`sms:?body=${encodeURIComponent(text)}`, '_blank')
-                      }}
-                      title="Share via SMS"
-                    >
-                      <MessageCircle className="w-3 h-3" />
-                      SMS
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => {
-                        const text = `Join us for ${event.title} on ${new Date(event.date).toLocaleString()} at ${event.location}`
-                        if (navigator.share) {
-                          navigator.share({
-                            title: event.title,
-                            text: text,
-                            url: window.location.href
-                          })
-                        }
-                      }}
-                      title="More sharing options"
-                    >
-                      <Share2 className="w-3 h-3" />
-                      More
-                    </Button>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => handleInviteClick(event.id)}
-                    title="Invite people"
-                  >
-                    <Users className="w-3 h-3" />
-                    Invite ({event.invitations?.length || 0})
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-
-        <EventInviteModal
-          open={showInviteModal}
-          onOpenChange={setShowInviteModal}
-          onSubmit={(invitations) => {
-            if (selectedEventId) {
-              handleInviteSuccess(invitations, selectedEventId)
-            }
-          }}
-          isLoading={false}
-          existingInvitations={
-            events.find(e => e.id === selectedEventId)?.invitations || []
+      <EventInviteModal
+        open={showInviteModal}
+        onOpenChange={setShowInviteModal}
+        onSubmit={(invitations) => {
+          if (selectedEventId) {
+            handleEventInvite(invitations, selectedEventId)
           }
-        />
-      </div>
-    </div >
+        }}
+        isLoading={isInviting}
+        existingInvitations={
+          events.find(e => e.id === selectedEventId)?.invitations || []
+        }
+      />
+    </div>
   )
 }

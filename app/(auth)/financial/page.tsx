@@ -314,12 +314,14 @@ export default function FinancialPage() {
   // ---------- Handlers ----------
   const handleDelete = async (id: string) => {
     const target = records.find((r) => r.id === id)
+    if (!confirm(`Are you sure you wanna delete ${target?.type} ${target?.category}`)) return;
     try {
       const supabase = getSupabaseBrowserClient()
       if (!supabase) throw new Error('Supabase is not configured.')
       await deleteFinancialRecord(supabase, id)
       setRecords((prev) => prev.filter((r) => r.id !== id))
       if (target) {
+        toast.success(`Financial record ${target.category} - ${target.type}`)
         recordActivityLog(
           'Delete',
           `Deleted financial record – ${target.type}, E${target.amount}`,
@@ -330,7 +332,7 @@ export default function FinancialPage() {
       }
     } catch (error) {
       console.error('Unable to delete financial record:', error)
-      toast.error('Unable to delete financial record.')
+      toast.error(`Failed to delete financial record. ${error}`)
     }
   }
 
