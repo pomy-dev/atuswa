@@ -302,6 +302,18 @@ export interface FinancialRecordFilters {
 }
 
 // Project Types
+export type ProjectFileKind = "image" | "document";
+
+export interface ProjectFile {
+  id: string;
+  project_id: string;
+  file_kind: ProjectFileKind;
+  name: string;
+  url: string;
+  size_bytes: number;
+  uploaded_at: string;
+}
+
 export enum ProjectStatus {
   STARTING = 'starting',
   IN_PROGRESS = 'in_progress',
@@ -313,27 +325,36 @@ export enum ProjectStatus {
 
 export interface ProjectPhase {
   id: string
+  project_id: string;
   name: string
   description: string
-  startDate: Date
-  endDate?: Date
+  start_date: Date
+  end_date?: Date
   status: ProjectStatus
 }
 
 export interface ProjectTeamMember {
-  id: string
-  userId: string
-  role: string
-  assignedDate: Date
+  id: string;
+  project_id: string;
+  user_id: string | null;
+  role: string;
+  assigned_date: string;
+  user?: {
+    id: string;
+    full_name: string;
+    email: string;
+    photo_url: string | null;
+  } | null;
 }
 
 export interface ProjectResource {
   id: string
+  project_id: string
   name: string
   quantity: number
   unit: string
   cost: number
-  usedDate: Date
+  used_date: Date
 }
 
 export interface ProjectImage {
@@ -354,22 +375,22 @@ export interface ProjectDocument {
 
 export interface Project {
   id: string
-  branchId: string
-  title: string
-  description: string
-  coordinator: string
-  phases: ProjectPhase[]
+  branch_id?: string
+  title?: string
+  description?: string
+  coordinator?: string
+  phases?: ProjectPhase[]
   status: ProjectStatus
-  budget: number
-  teamMembers: ProjectTeamMember[]
-  resources: ProjectResource[]
-  images: ProjectImage[]
-  documents: ProjectDocument[]
-  timeline: string
-  startDate?: Date
-  endDate?: Date
-  createdBy: string
-  createdAt: Date
+  budget?: number
+  teamMembers?: ProjectTeamMember[]
+  resources?: ProjectResource[]
+  images?: ProjectImage[]
+  documents?: ProjectDocument[]
+  timeline?: string
+  start_date?: Date
+  end_date?: Date
+  created_by: string
+  created_at: Date
 }
 
 // Event Types

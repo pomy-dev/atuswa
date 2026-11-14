@@ -74,7 +74,7 @@ export default function EventsPage() {
     branchId: '',
   })
 
-  const [stakeholders, setStakeholders] = useState<Stakeholder[]>([])
+  const [stakeholders, setStakeholders] = useState<(Stakeholder & { imageFile?: File })[]>([])
   const [newStakeholder, setNewStakeholder] = useState({
     name: '',
     profession: '',
@@ -90,11 +90,14 @@ export default function EventsPage() {
   const [fileCaption, setFileCaption] = useState('')
 
   const [isLoading, setIsLoading] = useState(false)
+  const [isSavingEvent, setIsSavingEvent] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [isInviting, setIsInviting] = useState(false)
 
-  const isSecretaryGeneral = user?.role === 'Secretary General' || user?.role === 'Branch Admin'
+  const normalizedRole = user?.role.toLowerCase().replace(/[_-]+/g, ' ').trim()
+  const isSecretaryGeneral = normalizedRole === 'secretary general' || normalizedRole === 'sg'
+  const isBranchAdmin = normalizedRole === 'branch admin' || normalizedRole === 'branch administrator'
 
   useEffect(() => {
     if (!user) return
@@ -195,16 +198,16 @@ export default function EventsPage() {
   const currentMonthEvents = useMemo(() => {
     const key = currentMonthKey()
     return events
-      .filter((e) => getMonthKey(e.created_at || e.event_date) === key)
+      .filter((e) => getMonthKey(e.event_date || e.created_at) === key)
       .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
   }, [events])
 
   const olderEventsByMonth = useMemo(() => {
     const key = currentMonthKey()
-    const older = events.filter((e) => getMonthKey(e.created_at || e.event_date) !== key)
+    const older = events.filter((e) => getMonthKey(e.event_date || e.created_at) !== key)
     const groups: Record<string, WorkspaceEvent[]> = {}
     older.forEach((e) => {
-      const mk = getMonthKey(e.created_at || e.event_date)
+      const mk = getMonthKey(e.event_date || e.created_at)
       if (!groups[mk]) groups[mk] = []
       groups[mk].push(e)
     })
@@ -243,6 +246,7 @@ export default function EventsPage() {
         name: newStakeholder.name.trim(),
         profession: newStakeholder.profession.trim(),
         image: imageUrl || undefined,
+        imageFile: newStakeholder.imageFile || undefined,
       },
     ])
     setNewStakeholder({ name: '', profession: '', imageFile: null, previewUrl: '' })
@@ -298,34 +302,68 @@ export default function EventsPage() {
   }
 
   const handleAddEvent = async () => {
-    const supabase = getSupabaseBrowserClient()
-    if (!supabase) throw new Error('Supabase is not configured.')
+    const title = formData.title.trim()
+    const location = formData.location.trim()
+    const branchId = isSecretaryGeneral ? formData.branchId : user?.branchId
+
+    if (!title || !formData.date || !location) {
+      toast.error('Please provide an event title, date, and location.')
+      return
+    }
+    if (isSecretaryGeneral && !branchId) {
+      toast.error('Please select a branch for this event.')
+      return
+    }
+    if (!user) {
+      toast.error('You must be signed in to create an event.')
+      return
+    }
+    if (!branchId) {
+      toast.error('Your account is not assigned to a branch.')
+      return
+    }
 
     try {
-      if (!formData.title || !formData.date || !formData.location) return
-      if (isSecretaryGeneral && !formData.branchId) return
+      setIsSavingEvent(true)
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
 
-      const branchId = isSecretaryGeneral ? formData.branchId : user!.branchId
       const createdEvent = await createEvent(supabase, {
         branch_id: branchId || null,
         affiliate_id: null,
-        title: formData.title.trim(),
+        title,
         notes: formData.notes,
         event_date: new Date(formData.date).toISOString(),
-        location: formData.location.trim(),
+        location,
         stakeholders: stakeholders.map((s) => s.name),
-      }, user!.id)
-      await Promise.all([
-        ...images.map(({ file }) => uploadEventFile(supabase, createdEvent.id, file, 'image')),
-        ...files.map(({ file }) => uploadEventFile(supabase, createdEvent.id, file, 'document')),
-      ])
+      }, user.id)
+
+      const attachments = [
+        ...images.map(({ file }) => ({ file, kind: 'image' as const })),
+        ...files.map(({ file }) => ({ file, kind: 'document' as const })),
+        ...stakeholders.flatMap((stakeholder) =>
+          stakeholder.imageFile ? [{ file: stakeholder.imageFile, kind: 'image' as const }] : []
+        ),
+      ]
+      const uploadResults = await Promise.allSettled(
+        attachments.map(({ file, kind }) => uploadEventFile(supabase, createdEvent.id, file, kind))
+      )
+      const failedUploads = uploadResults.filter((result) => result.status === 'rejected')
+
       resetForm()
-      toast.success(`Event created.${createdEvent.title}`)
+      toast.success(`Event created: ${createdEvent.title}`)
       recordActivityLog('Create', `Created event - ${createdEvent.title}`, user?.id, user?.name, ip || '')
+      if (failedUploads.length > 0) {
+        toast.error(`${failedUploads.length} attachment(s) could not be uploaded. See the console for details.`)
+        failedUploads.forEach((result) => {
+          if (result.status === 'rejected') console.error('Event attachment upload failed:', result.reason)
+        })
+      }
     } catch (err) {
       console.error(err)
       toast.error(err instanceof Error ? err.message : 'Could not create event.')
     } finally {
+      setIsSavingEvent(false)
       await loadAllEvents()
     }
   }
@@ -333,6 +371,7 @@ export default function EventsPage() {
   const handleDelete = async (id: string) => {
     const supabase = getSupabaseBrowserClient()
     if (!supabase) throw new Error('Supabase is not configured.')
+    if (!confirm("Are you sure to delete event? This action is irreversible!")) return
     try {
       await deleteEvent(supabase, id)
       recordActivityLog('Delete', `Deleted event`, user?.id, user?.name, ip!)
@@ -349,7 +388,7 @@ export default function EventsPage() {
     setShowInviteModal(true)
   }
 
-  const handleEventInvite = async (newInvitations: EventInvitation[], eventId: string) => {
+  const handleEventInvite = async (newInvitations: EventInvitation[], eventId: string, eventTitle: string) => {
     if (!newInvitations?.length) return
 
     const supabase = getSupabaseBrowserClient()
@@ -360,7 +399,7 @@ export default function EventsPage() {
       await createBulkEventInvitations(supabase, {
         event_id: eventId,
         invitations: newInvitations.map(({ name, email, phone }) => ({ name, email, phone })),
-      })
+      }, eventTitle)
       toast.success(`${newInvitations.length} invitation(s) saved.`)
     } catch (err) {
       console.error(err)
@@ -681,6 +720,36 @@ export default function EventsPage() {
               </div>
 
               <div className="space-y-1.5">
+                <Label htmlFor="event-branch">Branch *</Label>
+                {isSecretaryGeneral ? (
+                  <select
+                    id="event-branch"
+                    required
+                    value={formData.branchId}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, branchId: e.target.value }))}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+                  >
+                    <option value="">Select a branch</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>{branch.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    id="event-branch"
+                    value={formData.branchId || user?.branchId || ''}
+                    disabled
+                    className="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-foreground shadow-sm disabled:cursor-not-allowed disabled:opacity-100"
+                  >
+                    <option value={formData.branchId || user?.branchId || ''}>
+                      {branches.find((branch) => branch.id === (formData.branchId || user?.branchId))?.name
+                        || (isBranchAdmin ? 'Your assigned branch' : 'Assigned branch')}
+                    </option>
+                  </select>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
                 <Label htmlFor="event-notes">Notes</Label>
                 <Textarea
                   id="event-notes"
@@ -973,10 +1042,10 @@ export default function EventsPage() {
             <Button
               size="lg"
               onClick={handleAddEvent}
-              disabled={!formData.title || !formData.date || !formData.location || isLoading}
+              disabled={!formData.title.trim() || !formData.date || !formData.location.trim() || isSavingEvent}
               className="flex-1 sm:flex-none"
             >
-              {isLoading && <Spinner className='h-4 w-4' />} Create Event
+              {isSavingEvent && <Spinner className='h-4 w-4' />} Create Event
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -987,7 +1056,7 @@ export default function EventsPage() {
         onOpenChange={setShowInviteModal}
         onSubmit={(invitations) => {
           if (selectedEventId) {
-            handleEventInvite(invitations, selectedEventId)
+            handleEventInvite(invitations, selectedEventId, formData.title)
           }
         }}
         isLoading={isInviting}

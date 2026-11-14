@@ -12,6 +12,7 @@ import { deleteEvent, deleteEventInvitation, getEventById, getEventFiles, getEve
 import { EventInviteModal } from '@/components/modals/event-invite-modal'
 import { toast } from 'sonner'
 import { ChevronLeft, Calendar, MapPin, Trash2, Users } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
 
 export default function EventDetailPage() {
   const params = useParams<{ id: string }>()
@@ -79,30 +80,33 @@ export default function EventDetailPage() {
   const removeEvent = async () => {
     const supabase = getSupabaseBrowserClient()
     if (!supabase) return
+    if (!confirm("Are you sure to delete event? This action is irreversible!")) return
     setWorking(true)
     try { await deleteEvent(supabase, params.id); toast.success('Event deleted.'); router.push('/events') }
     catch (error) { toast.error(error instanceof Error ? error.message : 'Could not delete event.') }
     finally { setWorking(false) }
   }
 
-  if (loading) return <div className="p-6">Loading event?</div>
+  if (loading) return <div className="flex flex-wrap p-6"><Spinner className='h-6 w-6' />{"  "}Loading event...</div>
   if (!event) return <div className="p-6"><Button variant="ghost" onClick={() => router.push('/events')}><ChevronLeft className="mr-2 h-4 w-4" />Events</Button><p>Event not found.</p></div>
   const images = files.filter((file) => file.file_kind === 'image')
   const documents = files.filter((file) => file.file_kind === 'document')
 
-  return <main className="mx-auto max-w-5xl space-y-6 p-6">
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><Button variant="ghost" className="-ml-3 mb-2" onClick={() => router.push('/events')}><ChevronLeft className="mr-1 h-4 w-4" />Back to Events</Button>
-        <h1 className="text-3xl font-semibold">{event.title}</h1>
-        <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground"><span className="flex items-center gap-2"><Calendar className="h-4 w-4" />{new Date(event.event_date).toLocaleString()}</span><span className="flex items-center gap-2"><MapPin className="h-4 w-4" />{event.location}</span></div>
+  return (
+    <main className="mx-auto max-w-5xl space-y-6 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div><Button variant="ghost" className="-ml-3 mb-2" onClick={() => router.push('/events')}><ChevronLeft className="mr-1 h-4 w-4" />Back to Events</Button>
+          <h1 className="text-3xl font-semibold">{event.title}</h1>
+          <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground"><span className="flex items-center gap-2"><Calendar className="h-4 w-4" />{new Date(event.event_date).toLocaleString()}</span><span className="flex items-center gap-2"><MapPin className="h-4 w-4" />{event.location}</span></div>
+        </div>
+        <Button variant="destructive" onClick={removeEvent} disabled={working}><Trash2 className="mr-2 h-4 w-4" />Delete event</Button>
       </div>
-      <Button variant="destructive" onClick={removeEvent} disabled={working}><Trash2 className="mr-2 h-4 w-4" />Delete event</Button>
-    </div>
-    <Card><CardHeader><CardTitle>Notes</CardTitle></CardHeader><CardContent className="whitespace-pre-wrap text-sm">{event.notes || 'No notes provided.'}</CardContent></Card>
-    {event?.stakeholders?.length! > 0 && <Card><CardHeader><CardTitle>Stakeholders</CardTitle></CardHeader><CardContent>{event.stakeholders!.join(', ')}</CardContent></Card>}
-    {images.length > 0 && <Card><CardHeader><CardTitle>Images ({images.length})</CardTitle></CardHeader><CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3">{images.map((file) => file.url && <a key={file.id} href={file.url} target="_blank" rel="noreferrer"><img src={file.url} alt={file.name} className="h-40 w-full rounded-md border object-cover" /><p className="truncate text-xs">{file.name}</p></a>)}</CardContent></Card>}
-    {documents.length > 0 && <Card><CardHeader><CardTitle>Documents ({documents.length})</CardTitle></CardHeader><CardContent className="space-y-2">{documents.map((file) => <div key={file.id} className="flex justify-between rounded border p-3"><span>{file.name}</span>{file.url && <a className="text-primary underline" href={file.url} target="_blank" rel="noreferrer">Open</a>}</div>)}</CardContent></Card>}
-    <Card><CardHeader className="flex-row items-center justify-between"><CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" />Invitations ({invitations.length})</CardTitle><Button onClick={() => setInviteOpen(true)}>Invite people</Button></CardHeader><CardContent className="divide-y">{invitations.length === 0 ? <p className="text-sm text-muted-foreground">No invitations yet.</p> : invitations.map((invitation) => <div key={invitation.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="font-medium">{invitation.name}</p><p className="text-sm text-muted-foreground">{invitation.email || invitation.phone}</p></div><div className="flex items-center gap-2"><Badge variant="secondary">{invitation.status}</Badge>{invitation.status === 'invited' && <><Button size="sm" variant="outline" onClick={() => changeInvitation(invitation, 'accepted')}>Accepted</Button><Button size="sm" variant="outline" onClick={() => changeInvitation(invitation, 'declined')}>Declined</Button></>}<Button size="sm" variant="ghost" onClick={() => removeInvitation(invitation.id)}>Remove</Button></div></div>)}</CardContent></Card>
-    <EventInviteModal open={inviteOpen} onOpenChange={setInviteOpen} onSubmit={sendInvitations} isLoading={working} existingInvitations={invitations} />
-  </main>
+      <Card><CardHeader><CardTitle>Notes</CardTitle></CardHeader><CardContent className="whitespace-pre-wrap text-sm">{event.notes || 'No notes provided.'}</CardContent></Card>
+      {event?.stakeholders?.length! > 0 && <Card><CardHeader><CardTitle>Stakeholders</CardTitle></CardHeader><CardContent>{event.stakeholders!.join(', ')}</CardContent></Card>}
+      {images.length > 0 && <Card><CardHeader><CardTitle>Images ({images.length})</CardTitle></CardHeader><CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3">{images.map((file) => file.url && <a key={file.id} href={file.url} target="_blank" rel="noreferrer"><img src={file.url} alt={file.name} className="h-40 w-full rounded-md border object-cover" /><p className="truncate text-xs">{file.name}</p></a>)}</CardContent></Card>}
+      {documents.length > 0 && <Card><CardHeader><CardTitle>Documents ({documents.length})</CardTitle></CardHeader><CardContent className="space-y-2">{documents.map((file) => <div key={file.id} className="flex justify-between rounded border p-3"><span>{file.name}</span>{file.url && <a className="text-primary underline" href={file.url} target="_blank" rel="noreferrer">Open</a>}</div>)}</CardContent></Card>}
+      <Card><CardHeader className="flex-row items-center justify-between"><CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" />Invitations ({invitations.length})</CardTitle><Button onClick={() => setInviteOpen(true)}>Invite people</Button></CardHeader><CardContent className="divide-y">{invitations.length === 0 ? <p className="text-sm text-muted-foreground">No invitations yet.</p> : invitations.map((invitation) => <div key={invitation.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="font-medium">{invitation.name}</p><p className="text-sm text-muted-foreground">{invitation.email || invitation.phone}</p></div><div className="flex items-center gap-2"><Badge variant="secondary">{invitation.status}</Badge>{invitation.status === 'invited' && <><Button size="sm" variant="outline" onClick={() => changeInvitation(invitation, 'accepted')}>Accepted</Button><Button size="sm" variant="outline" onClick={() => changeInvitation(invitation, 'declined')}>Declined</Button></>}<Button size="sm" variant="ghost" onClick={() => removeInvitation(invitation.id)}>Remove</Button></div></div>)}</CardContent></Card>
+      <EventInviteModal open={inviteOpen} onOpenChange={setInviteOpen} onSubmit={sendInvitations} isLoading={working} existingInvitations={invitations} />
+    </main>
+  );
 }

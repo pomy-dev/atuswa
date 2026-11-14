@@ -20,6 +20,10 @@ import {
 import { recordActivityLog } from '@/lib/constants'
 import { useUserIP } from '@/lib/userUserIp'
 import { ArrowLeft, Plus, Trash2, Users, Download, Loader } from 'lucide-react'
+import { toast } from 'sonner'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { createProjectPhase, createProjectResource, addProjectTeamMember, createProjectFile, deleteProjectPhase, deleteProjectResource, removeProjectTeamMember, deleteProjectFile, getProjectById, getProjectFiles, getProjectPhases, getProjectResources, getProjectTeamMembers, updateProject, updateProjectPhase } from '@/services/project-service'
+import type { ProjectFile } from '@/lib/types'
 
 type Params = Promise<{ id: string }>
 
@@ -33,191 +37,186 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
   const [newResource, setNewResource] = useState({ name: '', quantity: 1, unit: '', cost: 0 })
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [loading, setLoading] = useState(true)
 
   const { id } = React.use(params)
 
   useEffect(() => {
     if (!id) return
 
-    const projects: Project[] = JSON.parse(localStorage.getItem("projects") || "[]")
-    const found = projects.find((p: Project) => p.id === id)
-
-    if (found) {
-      found.phases = found.phases.map((phase) => ({
-        ...phase,
-        status: phase.status ?? ProjectStatus.STARTING,
-      }))
-
-      setProject(found)
+    let cancelled = false
+    const load = async () => {
+      try {
+        const supabase = getSupabaseBrowserClient()
+        if (!supabase) throw new Error('Supabase is not configured.')
+        const [row, phases, team, resources, files] = await Promise.all([
+          getProjectById(supabase, id), getProjectPhases(supabase, id), getProjectTeamMembers(supabase, id),
+          getProjectResources(supabase, id), getProjectFiles(supabase, id),
+        ])
+        if (cancelled) return
+        setProject({
+          ...row,
+          phases: phases.map((p: any) => ({
+            ...p,
+            start_date: new Date(p.start_date),
+            end_date: p.end_date ? new Date(p.end_date) : undefined
+          })),
+          teamMembers: team as unknown as Project['teamMembers'],
+          resources: resources.map(r => ({ ...r, usedDate: r.used_date } as unknown as ProjectResource)),
+          images: files.filter(f => f.file_kind === 'image').map(f => ({ id: f.id, name: f.name, url: f.url, size: f.size_bytes, uploadedAt: new Date(f.uploaded_at) })),
+          documents: files.filter(f => f.file_kind === 'document').map(f => ({ id: f.id, name: f.name, url: f.url, size: f.size_bytes, uploadedAt: new Date(f.uploaded_at) })),
+        })
+      } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to load project.') }
+      finally { if (!cancelled) setLoading(false) }
     }
+    void load()
+    return () => { cancelled = true }
   }, [id])
 
-  const saveProject = (updatedProject: Project) => {
-    const projects: Project[] = JSON.parse(localStorage.getItem("projects") || "[]")
-    const updatedProjects = projects.map((p: Project) =>
-      p.id === updatedProject.id ? updatedProject : p
-    )
-    localStorage.setItem('projects', JSON.stringify(updatedProjects))
-    setProject(updatedProject)
+  const runAction = async (action: () => Promise<void>, success: string) => {
+    try { await action(); toast.success(success) }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Project action failed.') }
   }
 
-  const handleStatusUpdate = (newStatus: ProjectStatus) => {
+  const handleStatusUpdate = async (newStatus: ProjectStatus) => {
     if (!project) return
-    saveProject({ ...project, status: newStatus })
+    await runAction(async () => {
+      const supabase = getSupabaseBrowserClient(); if (!supabase) throw new Error('Supabase is not configured.')
+      const updated = await updateProject(supabase, project.id, { ...project, status: newStatus })
+      setProject(current => current ? { ...current, ...updated } : current)
+    }, 'Project status updated.')
   }
 
   // Phases
-  const addPhase = () => {
+  const addPhase = async () => {
     if (!project || !newPhaseName.trim()) return
 
-    const newPhase: ProjectPhase = {
-      id: Date.now().toString(),
-      name: newPhaseName.trim(),
-      description: '',
-      startDate: new Date(),
-      status: ProjectStatus.PLANNING
-    }
-
-    saveProject({
-      ...project,
-      phases: [...project.phases, newPhase]
-    })
-    setNewPhaseName('')
+    await runAction(async () => {
+      const supabase = getSupabaseBrowserClient(); if (!supabase) throw new Error('Supabase is not configured.')
+      const newPhasePayload: ProjectPhase = {
+        project_id: project.id,
+        name: newPhaseName.trim(),
+        description: '',
+        start_date: new Date(),
+        status: ProjectStatus.PLANNING,
+      } as ProjectPhase;
+      const saved = await createProjectPhase(supabase, newPhasePayload);
+      setProject(current => current ? {
+        ...current,
+        phases: [...(current.phases ?? []), {
+          ...saved,
+          start_date: new Date(saved.start_date),
+          end_date: saved.end_date ? new Date(saved.end_date) : undefined
+        }]
+      } : current);
+      setNewPhaseName('')
+    }, 'Phase added.')
   }
 
-  const updatePhase = (phaseId: string, updates: Partial<ProjectPhase>) => {
+  const updatePhase = async (phaseId: string, updates: Partial<ProjectPhase>) => {
     if (!project) return
-    const updatedPhases = project.phases.map(phase =>
-      phase.id === phaseId ? { ...phase, ...updates } : phase
-    )
-    saveProject({ ...project, phases: updatedPhases })
+    const phase = project.phases?.find(item => item.id === phaseId); if (!phase) return
+    await runAction(async () => {
+      const supabase = getSupabaseBrowserClient(); if (!supabase) throw new Error('Supabase is not configured.')
+      const payload: ProjectPhase = { ...phase, ...updates, start_date: updates.start_date ?? phase.start_date, end_date: updates.end_date ?? phase.end_date };
+      const saved = await updateProjectPhase(supabase, phaseId, payload)
+      setProject(current => current ? { ...current, phases: current.phases?.map(item => item.id === phaseId ? { ...saved, startDate: saved.start_date, endDate: saved.end_date } as unknown as ProjectPhase : item) } : current)
+    }, 'Phase updated.')
   }
 
-  const deletePhase = (phaseId: string) => {
+  const deletePhase = async (phaseId: string) => {
     if (!project) return
-    saveProject({
-      ...project,
-      phases: project.phases.filter(p => p.id !== phaseId)
-    })
+    await runAction(async () => {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) throw new Error('Supabase is not configured.');
+      await deleteProjectPhase(supabase, phaseId);
+      setProject(current => current ? {
+        ...current,
+        phases: current.phases?.filter(p => p.id !== phaseId)
+      }
+        : current)
+    }, 'Phase deleted.')
   }
 
   // Team Members
-  const addTeamMember = () => {
+  const addTeamMember = async () => {
     if (!project || !newTeamMember.userId || !newTeamMember.role) return
 
-    const member: ProjectTeamMember = {
-      id: Date.now().toString(),
-      userId: newTeamMember.userId,
-      role: newTeamMember.role,
-      assignedDate: new Date()
-    }
-
-    saveProject({
-      ...project,
-      teamMembers: [...project.teamMembers, member]
-    })
-
-    recordActivityLog('Assign', `Affiliated member - ${member.role} to project ${project.title}`, user?.id, user?.name, ip!)
-    setNewTeamMember({ userId: '', role: '' })
+    await runAction(async () => {
+      const supabase = getSupabaseBrowserClient(); if (!supabase) throw new Error('Supabase is not configured.')
+      const member = await addProjectTeamMember(supabase, { project_id: project.id, user_id: newTeamMember.userId, role: newTeamMember.role, assigned_date: new Date().toISOString() } as ProjectTeamMember)
+      setProject(current => current ? { ...current, teamMembers: [...(current.teamMembers ?? []), member] } : current)
+      recordActivityLog('Assign', `Affiliated member - ${member.role} to project ${project.title}`, user?.id, user?.name, ip!)
+      setNewTeamMember({ userId: '', role: '' })
+    }, 'Team member added.')
   }
 
-  const removeTeamMember = (memberId: string) => {
+  const removeTeamMember = async (memberId: string) => {
     if (!project) return
-    const member = project.teamMembers.find((m) => m.id === id)?.role
-    recordActivityLog('Remove', `Removed member ${member} from project ${project.title}`, user?.id, user?.name, ip!)
-    saveProject({
-      ...project,
-      teamMembers: project.teamMembers.filter(m => m.id !== memberId)
-    })
+    const member = project.teamMembers?.find(m => m.id === memberId)?.role
+    await runAction(async () => { const supabase = getSupabaseBrowserClient(); if (!supabase) throw new Error('Supabase is not configured.'); await removeProjectTeamMember(supabase, memberId); setProject(current => current ? { ...current, teamMembers: current.teamMembers?.filter(m => m.id !== memberId) } : current); recordActivityLog('Remove', `Removed member ${member} from project ${project.title}`, user?.id, user?.name, ip!) }, 'Team member removed.')
   }
 
   // Resources
-  const addResource = () => {
+  const addResource = async () => {
     if (!project || !newResource.name) return
 
-    const resource: ProjectResource = {
-      id: Date.now().toString(),
-      name: newResource.name,
-      quantity: newResource.quantity,
-      unit: newResource.unit || 'unit',
-      cost: newResource.cost,
-      usedDate: new Date()
-    }
-
-    saveProject({
-      ...project,
-      resources: [...project.resources, resource]
-    })
-    setNewResource({ name: '', quantity: 1, unit: '', cost: 0 })
+    await runAction(async () => {
+      const supabase = getSupabaseBrowserClient(); if (!supabase) throw new Error('Supabase is not configured.')
+      const saved = await createProjectResource(supabase, { id: '', project_id: project.id, ...newResource, unit: newResource.unit || 'unit', used_date: new Date() })
+      setProject(current => current ? { ...current, resources: [...(current.resources ?? []), { ...saved, usedDate: saved.used_date } as unknown as ProjectResource] } : current)
+      setNewResource({ name: '', quantity: 1, unit: '', cost: 0 })
+    }, 'Resource added.')
   }
 
-  const removeResource = (resId: string) => {
+  const removeResource = async (resId: string) => {
     if (!project) return
-    saveProject({
-      ...project,
-      resources: project.resources.filter(r => r.id !== resId)
-    })
+    await runAction(async () => {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) throw new Error('Supabase is not configured.');
+      await deleteProjectResource(supabase, resId);
+      setProject(current => current ? {
+        ...current,
+        resources: current.resources?.filter(r => r.id !== resId)
+      }
+        : current)
+    }, 'Resource deleted.')
   }
 
   // File upload (project level - images & documents)
-  const handleFileUpload = (type: 'image' | 'document') => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (type: 'image' | 'document') => async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !project) return
 
     const files = Array.from(e.target.files)
     setIsUploading(true)
     setUploadProgress(0)
 
-    let completed = 0
-    const totalFiles = files.length
-
-    files.forEach(file => {
-      const reader = new FileReader()
-      reader.onload = (ev) => {
-        const newFile = {
-          id: Date.now().toString() + Math.random().toString(36).slice(2),
-          name: file.name,
-          url: ev.target?.result as string,
-          uploadedAt: new Date(),
-          size: file.size
-        }
-
-        if (type === 'image') {
-          saveProject({ ...project, images: [...project.images, newFile] })
-        } else {
-          saveProject({ ...project, documents: [...project.documents, newFile] })
-        }
-
-        completed++
-        setUploadProgress(Math.round((completed / totalFiles) * 100))
-
-        if (completed === totalFiles) {
-          setIsUploading(false)
-          setUploadProgress(0)
-        }
+    try {
+      const supabase = getSupabaseBrowserClient(); if (!supabase) throw new Error('Supabase is not configured.')
+      for (const [index, file] of files.entries()) {
+        const path = `${project.id}/${crypto.randomUUID()}-${file.name}`
+        const { error } = await supabase.storage.from('project-files').upload(path, file)
+        if (error) throw error
+        const { data } = supabase.storage.from('project-files').getPublicUrl(path)
+        const saved = await createProjectFile(supabase, { project_id: project.id, file_kind: type, name: file.name, url: data.publicUrl, size_bytes: file.size } as ProjectFile)
+        const normalized = { id: saved.id, name: saved.name, url: saved.url, size: saved.size_bytes, uploadedAt: saved.uploaded_at }
+        setProject(current => current ? { ...current, [type === 'image' ? 'images' : 'documents']: [...(current[type === 'image' ? 'images' : 'documents'] ?? []), normalized] } : current)
+        setUploadProgress(Math.round(((index + 1) / files.length) * 100))
       }
-      reader.readAsDataURL(file)
-    })
-
+      toast.success('Files uploaded.')
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to upload files.') }
+    finally { setIsUploading(false); setUploadProgress(0) }
     e.target.value = ''
   }
 
   // Delete file
-  const handleDeleteFile = (type: 'image' | 'document', fileId: string) => {
+  const handleDeleteFile = async (type: 'image' | 'document', fileId: string) => {
     if (!project) return
 
-    if (type === 'image') {
-      saveProject({
-        ...project,
-        images: project.images.filter(img => img.id !== fileId)
-      })
-    } else {
-      saveProject({
-        ...project,
-        documents: project.documents.filter(doc => doc.id !== fileId)
-      })
-    }
+    await runAction(async () => { const supabase = getSupabaseBrowserClient(); if (!supabase) throw new Error('Supabase is not configured.'); const file = await supabase.from('project_files').select('url').eq('id', fileId).single(); if (file.error) throw file.error; const path = file.data.url.split('/project-files/')[1]; if (path) await supabase.storage.from('project-files').remove([decodeURIComponent(path)]); await deleteProjectFile(supabase, fileId); setProject(current => current ? { ...current, [type === 'image' ? 'images' : 'documents']: current[type === 'image' ? 'images' : 'documents']?.filter(item => item.id !== fileId) } : current) }, 'File deleted.')
   }
 
+  if (loading) return <div className="container mx-auto py-8">Loading project…</div>
   if (!project) {
     return <div className="container mx-auto py-8">Project not found</div>
   }
@@ -242,7 +241,7 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
           <div>
             <CardTitle className="text-3xl">{project.title}</CardTitle>
             <CardDescription className="mt-2">
-              Coordinator: {project.coordinator} • Branch: {project.branchId}
+              Coordinator: {project.coordinator} • Branch: {project.branch_id}
             </CardDescription>
           </div>
           <Badge className={statusColors[project.status]}>
@@ -299,7 +298,7 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
             <div className="space-y-6">
               <div>
                 <div className="flex justify-between items-center mb-3">
-                  <h3 className="font-semibold">Images ({project.images.length})</h3>
+                  <h3 className="font-semibold">Images ({(project.images ?? []).length})</h3>
                   <label>
                     <Button variant="outline" onClick={() => document.getElementById('project-image')?.click()} size="sm" disabled={isUploading}>
                       {isUploading ? <Loader className="w-4 h-4 animate-spin mr-2" /> : null}
@@ -321,11 +320,11 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
                   </div>
                 )}
 
-                {project.images.length === 0 ? (
+                {(project.images ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground py-4">No images uploaded yet</p>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {project.images.map(img => (
+                    {(project.images ?? []).map(img => (
                       <div key={img.id} className="border rounded-lg overflow-hidden hover:shadow-lg transition group">
                         <div className="relative">
                           <img src={img.url} alt={img.name} className="w-full h-32 object-cover" />
@@ -350,7 +349,7 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
 
               <div>
                 <div className="flex justify-between items-center mb-3">
-                  <h3 className="font-semibold">Documents ({project.documents.length})</h3>
+                  <h3 className="font-semibold">Documents ({(project.documents ?? []).length})</h3>
                   <label>
                     <Button onClick={() => document.getElementById('project-doc')?.click()} variant="outline" size="sm" disabled={isUploading}>
                       {isUploading ? <Loader className="w-4 h-4 animate-spin mr-2" /> : null}
@@ -360,11 +359,11 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
                   </label>
                 </div>
 
-                {project.documents.length === 0 ? (
+                {(project.documents ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground py-4">No documents uploaded yet</p>
                 ) : (
                   <div className="space-y-2">
-                    {project.documents.map(doc => (
+                    {(project.documents ?? []).map(doc => (
                       <div key={doc.id} className="flex items-center justify-between border p-4 rounded-lg hover:bg-muted/50 transition group">
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm truncate" title={doc.name}>{doc.name}</p>
@@ -408,23 +407,15 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
             </Button>
           </div>
 
-          {project.phases.map(phase => {
+          {(project.phases ?? []).map(phase => {
             // Safe date conversion
-            const startDateStr = phase.startDate
-              ? (phase.startDate instanceof Date
-                ? phase.startDate.toISOString().split("T")[0]
-                : typeof phase.startDate === "string"
-                  ? phase.startDate?.split("T")[0]
-                  : "")
+            const startDateStr = phase.start_date instanceof Date
+              ? phase.start_date.toISOString().split("T")[0]
               : "";
 
-            const endDateStr = phase.endDate
-              ? (phase.endDate instanceof Date
-                ? phase.endDate.toISOString().split("T")[0]
-                : typeof phase.endDate === "string"
-                  ? phase.endDate?.split("T")[0]
-                  : undefined)
-              : undefined;
+            const endDateStr = phase.end_date instanceof Date
+              ? phase.end_date.toISOString().split("T")[0]
+              : "";
 
             return (
               <Card key={phase.id}>
@@ -465,7 +456,7 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
                         type="date"
                         value={startDateStr}
                         onChange={(e) => updatePhase(phase.id, {
-                          startDate: e.target.value ? new Date(e.target.value) : new Date()
+                          start_date: e.target.value ? new Date(e.target.value) : new Date()
                         })}
                       />
                     </div>
@@ -475,7 +466,7 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
                         type="date"
                         value={endDateStr}
                         onChange={(e) => updatePhase(phase.id, {
-                          endDate: e.target.value ? new Date(e.target.value) : undefined
+                          end_date: e.target.value ? new Date(e.target.value) : undefined
                         })}
                       />
                     </div>
@@ -519,10 +510,10 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
             </div>
 
             <div className="space-y-3">
-              {project.teamMembers.map(member => (
+              {(project.teamMembers ?? []).map(member => (
                 <div key={member.id} className="flex justify-between items-center border p-4 rounded-lg">
                   <div>
-                    <p><strong>User ID:</strong> {member.userId}</p>
+                    <p><strong>User ID:</strong> {member.user_id}</p>
                     <p><strong>Role:</strong> {member.role}</p>
                   </div>
                   <Button variant="destructive" size="sm" onClick={() => removeTeamMember(member.id)}>
@@ -571,7 +562,7 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
             </div>
 
             <div className="space-y-3">
-              {project.resources.map(res => (
+              {(project.resources ?? []).map(res => (
                 <div key={res.id} className="border p-4 rounded-lg flex justify-between">
                   <div>
                     <strong>{res.name}</strong> — {res.quantity} {res.unit} (E{res.cost})
@@ -588,3 +579,4 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
     </div>
   )
 }
+

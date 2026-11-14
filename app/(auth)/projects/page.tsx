@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,23 +8,21 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
-import { UserRole, Project, ProjectStatus, Role, Permission } from '@/lib/types'
+import { Project, ProjectStatus, Role, Permission } from '@/lib/types'
 import { Plus, Trash2, Calendar } from 'lucide-react'
 import { canSee, recordActivityLog } from '@/lib/constants'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { getAllRoles, getAllPermissions } from '@/lib/utils'
+import { getAllRoles, getAllPermissions } from '@/services/auth-services'
 import { AddProjectModal } from '@/components/modals/add-project-modal'
 import { useUserIP } from '@/lib/userUserIp'
+import { toast } from 'sonner'
+import { createProject, deleteProject, getAllProjects, updateProject } from '@/services/project-service'
 
 export default function ProjectsPage() {
   const { user } = useAuth()
   const { ip } = useUserIP()
-  const [projects, setProjects] = useState<Project[]>(() =>
-    JSON.parse(localStorage.getItem('projects') || '[]').filter((p: Project) =>
-      user?.role === UserRole.SECRETARY_GENERAL || p.branchId === user?.branchId
-    )
-  )
+  const [projects, setProjects] = useState<Project[]>([])
   const [showForm, setShowForm] = useState(false)
   const [showAddProjectModal, setShowAddProjectModal] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -36,6 +34,18 @@ export default function ProjectsPage() {
 
   const [roles, setRoles] = useState<Role[]>([])
   const [permissions, setPermissions] = useState<Permission[]>([])
+
+  const loadProjects = async () => {
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const rows = await getAllProjects(supabase)
+    setProjects(rows.filter(project => user?.role === 'sg' || project.branch_id === user?.branchId))
+  }
+
+  useEffect(() => {
+    if (!user) return
+    loadProjects().catch(error => toast.error(error instanceof Error ? error.message : 'Unable to load projects.'))
+  }, [user])
 
   useEffect(() => {
     if (!user) return;
@@ -92,56 +102,46 @@ export default function ProjectsPage() {
     [ProjectStatus.FINISHED]: 'bg-green-500/20 text-green-700 dark:text-green-400',
   }
 
-  const handleAddProject = () => {
-    if (!formData.title || !formData.description) return
-
-    const newProject: Project = {
-      id: `proj_${Date.now()}`,
-      branchId: user!.branchId,
-      title: formData.title,
-      description: formData.description,
-      status: formData.status as ProjectStatus,
-      phases: [],
-      coordinator: "",
-      budget: 0.00,
-      timeline: "",
-      teamMembers: [],
-      resources: [],
-      images: [],
-      documents: [],
-      startDate: new Date(),
-      createdBy: user!.id,
-      createdAt: new Date()
-    }
-
-    const allProjects = JSON.parse(localStorage.getItem('projects') || '[]')
-    const updated = [...allProjects, newProject]
-    localStorage.setItem('projects', JSON.stringify(updated))
-    setProjects([...projects, newProject])
+  const handleAddProject = async () => {
+    if (!formData.title || !formData.description || !user) return
+    try {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const newProject = await createProject(supabase, {
+        title: formData.title, description: formData.description, status: formData.status,
+        branch_id: user.branchId, coordinator: '', budget: 0, timeline: '', start_date: new Date(),
+        created_by: user.id, created_at: new Date(),
+      } as Project)
+      setProjects(current => [newProject, ...current])
+      toast.success('Project created.')
     setFormData({ title: '', description: '', status: ProjectStatus.PLANNING })
     setShowForm(false)
-
-    recordActivityLog('Initialized', `Initialized project - ${newProject.title}`, user?.id, user?.name, ip!)
+      recordActivityLog('Initialized', `Initialized project - ${newProject.title}`, user.id, user.name, ip!)
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to create project.') }
   }
 
-  const handleUpdateStatus = (id: string, newStatus: ProjectStatus) => {
-    const allProjects = JSON.parse(localStorage.getItem('projects') || '[]')
-    const updated = allProjects.map((p: Project) =>
-      p.id === id ? { ...p, status: newStatus } : p
-    )
-    localStorage.setItem('projects', JSON.stringify(updated))
-    setProjects(projects.map(p => p.id === id ? { ...p, status: newStatus } : p))
+  const handleUpdateStatus = async (id: string, newStatus: ProjectStatus) => {
+    const project = projects.find(item => item.id === id)
+    if (!project) return
+    try {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const updated = await updateProject(supabase, id, { ...project, status: newStatus })
+      setProjects(current => current.map(item => item.id === id ? updated : item))
+      toast.success('Project status updated.')
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to update project status.') }
   }
 
-  const handleDelete = (id: string) => {
-    const allProjects = JSON.parse(localStorage.getItem('projects') || '[]')
-    const updated = allProjects.filter((p: Project) => p.id !== id)
-    localStorage.setItem('projects', JSON.stringify(updated))
-
-    const deletedPro = allProjects.find((pro: Project) => pro.id === id)?.title
-    recordActivityLog('Cancel', `Cancelled & removed project - ${deletedPro}`, user?.id, user?.name, ip!)
-
-    setProjects(projects.filter(p => p.id !== id))
+  const handleDelete = async (id: string) => {
+    try {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      await deleteProject(supabase, id)
+      const deleted = projects.find(project => project.id === id)
+      setProjects(current => current.filter(project => project.id !== id))
+      toast.success('Project deleted.')
+      recordActivityLog('Cancel', `Cancelled & removed project - ${deleted?.title}`, user?.id, user?.name, ip!)
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to delete project.') }
   }
 
   const statusOptions = [
@@ -246,7 +246,7 @@ export default function ProjectsPage() {
 
                 <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
                   <Calendar className="w-4 h-4" />
-                  <span>Started: {new Date(project?.startDate).toLocaleDateString()}</span>
+                  <span>Started: {new Date(project?.start_date!).toLocaleDateString()}</span>
                 </div>
 
                 <div className="space-y-2">
@@ -275,21 +275,18 @@ export default function ProjectsPage() {
         onOpenChange={setShowAddProjectModal}
         onSubmit={(project) => {
           setIsLoading(true)
-          try {
-            const allProjects = JSON.parse(localStorage.getItem('projects') || '[]')
-            const newProject: Project = {
-              ...project,
-              id: `project_${Date.now()}`,
-              startDate: new Date(),
-              createdAt: new Date()
-            }
-            const updated = [...allProjects, newProject]
-            localStorage.setItem('projects', JSON.stringify(updated))
-            setProjects(p => [...p, newProject])
-            setShowAddProjectModal(false)
-          } finally {
-            setIsLoading(false)
+          const run = async () => {
+            try {
+              const supabase = getSupabaseBrowserClient()
+              if (!supabase || !user) throw new Error('Supabase is not configured.')
+              const newProject = await createProject(supabase, { ...project, branch_id: user.branchId, created_by: user.id, start_date: new Date(), created_at: new Date() } as Project)
+              setProjects(current => [newProject, ...current])
+              setShowAddProjectModal(false)
+              toast.success('Project created.')
+            } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to create project.') }
+            finally { setIsLoading(false) }
           }
+          void run()
         }}
         isLoading={isLoading}
         branchId={user?.branchId || 'branch_main'}

@@ -256,7 +256,8 @@ export async function createEventInvitation(
 // Create multiple event invitations at once
 export async function createBulkEventInvitations(
   supabase: SupabaseClient,
-  payload: BulkEventInvitation
+  payload: BulkEventInvitation,
+  eventTitle: string
 ): Promise<EventInvitation[]> {
 
   if (!payload.invitations.length) {
@@ -287,6 +288,42 @@ export async function createBulkEventInvitations(
   if (error) {
     console.error("Error creating bulk invitations:", error);
     throw error;
+  }
+
+  const createdInvitations = (data ?? []) as EventInvitation[];
+
+  // 2. Get invitations with email addresses
+  const emailInvitations = createdInvitations.filter(
+    (invite) => invite.email
+  );
+
+  // 3. Send invitations
+  if (emailInvitations.length > 0) {
+    const { data: emailResult, error: emailError } =
+      await supabase.functions.invoke(
+        "send-event-invitations",
+        {
+          body: {
+            event_id: payload.event_id,
+            event_title: eventTitle,
+            invitation_ids: emailInvitations.map(
+              (invite) => invite.id
+            ),
+          },
+        }
+      );
+
+    if (emailError) {
+      console.error("Email sending error:", emailError);
+
+      // Invitations are already saved.
+      // Do not throw away the successful database operation.
+      console.error(
+        "Invitations saved, but email sending could not be completed."
+      );
+    } else {
+      console.log("Email sending results:", emailResult);
+    }
   }
 
   return (data ?? []) as EventInvitation[];
