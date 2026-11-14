@@ -15,11 +15,16 @@ export async function createProject(
 ): Promise<Project> {
   const { data, error } = await supabase
     .from("projects")
-    .insert(payload)
-    .select("*")
+    .insert({
+      ...payload,
+      branch_id: payload.branch_id?.trim() || null,
+      created_by: payload.created_by?.trim() || null,
+    })
+    .select()
     .single();
 
   if (error) {
+    console.log("error", error)
     throw new Error(`Failed to create project: ${error.message}`);
   }
 
@@ -78,7 +83,16 @@ export async function updateProject(
   const { data, error } = await supabase
     .from("projects")
     .update({
-      ...payload,
+      branch_id: payload.branch_id?.trim() || null,
+      title: payload.title,
+      description: payload.description,
+      coordinator: payload.coordinator,
+      status: payload.status,
+      budget: payload.budget,
+      timeline: payload.timeline,
+      start_date: payload.start_date,
+      end_date: payload.end_date,
+      created_by: payload.created_by?.trim() || null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
@@ -164,6 +178,7 @@ export async function updateProjectPhase(
   id: string,
   payload: ProjectPhase
 ): Promise<ProjectPhase> {
+  console.log(payload)
   const { data, error } = await supabase
     .from("project_phases")
     .update(payload)

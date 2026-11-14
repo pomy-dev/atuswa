@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -498,88 +498,94 @@ export default function EventsPage() {
       </div>
 
       {/* Grid */}
-      {displayedGridEvents.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="py-16 text-center">
-            <Calendar className="w-10 h-10 mx-auto text-muted-foreground/50 mb-3" />
-            <p className="text-muted-foreground text-sm">
-              {events.length === 0
-                ? 'No events yet. Create your first event.'
-                : 'No events in the selected period.'}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {displayedGridEvents.map((event) => {
-            const inviteCount = event.invitations?.length || 0
-            return (
-              <Card
-                key={event.id}
-                className="group cursor-pointer hover:shadow-md transition-all duration-200 border-border/60 hover:border-border"
-                onClick={() => router.push(`/events/${event.id}`)}
-              >
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-semibold text-sm leading-snug line-clamp-2 group-hover:text-primary transition-colors">
-                      {event.title}
-                    </h3>
-                    {getStatusBadge(event)}
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {new Date(event.event_date).toLocaleDateString(undefined, {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
+      {isLoading ?
+        (
+          <Card className="border-dashed">
+            <CardContent className="py-16 text-center">
+              <p className="flex flex-wrap items-center justify-center text-muted-foreground text-sm"><Spinner className='h-4 w-4' />{"  "}Loading...</p>
+            </CardContent>
+          </Card>
+        )
+        : (!isLoading && displayedGridEvents.length === 0) ? (
+          <Card className="border-dashed">
+            <CardContent className="py-16 text-center">
+              <Calendar className="w-10 h-10 mx-auto text-muted-foreground/50 mb-3" />
+              <p className="text-muted-foreground text-sm">
+                {events.length === 0
+                  ? 'No events yet. Create your first event.'
+                  : 'No events in the selected period.'}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {displayedGridEvents.map((event) => {
+              const inviteCount = event.invitations?.length || 0
+              return (
+                <Card
+                  key={event.id}
+                  className="group cursor-pointer hover:shadow-md transition-all duration-200 border-border/60 hover:border-border"
+                  onClick={() => router.push(`/events/${event.id}`)}
+                >
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-semibold text-sm leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+                        {event.title}
+                      </h3>
+                      {getStatusBadge(event)}
                     </div>
-                    <p className="text-xs font-medium text-foreground/80">
-                      {formatDaysLeft(event.event_date)}
-                    </p>
-                  </div>
 
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Users className="w-3.5 h-3.5" />
-                    {inviteCount} invitee{inviteCount === 1 ? '' : 's'}
-                  </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {new Date(event.event_date).toLocaleDateString(undefined, {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </div>
+                      <p className="text-xs font-medium text-foreground/80">
+                        {formatDaysLeft(event.event_date)}
+                      </p>
+                    </div>
 
-                  <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger>
-                        <Button variant="outline" size="sm" className="h-8 flex-1 gap-1.5">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Users className="w-3.5 h-3.5" />
+                      {inviteCount} invitee{inviteCount === 1 ? '' : 's'}
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className={buttonVariants({ variant: 'outline', size: 'sm', className: 'h-8 flex-1 gap-1.5' })}>
                           <Share2 className="w-3.5 h-3.5" />
                           Share
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-44">
-                        {shareActions(event).map((item) => (
-                          <DropdownMenuItem key={item.label} onClick={item.action} className="gap-2 text-sm">
-                            {item.icon}
-                            {item.label}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-44">
+                          {shareActions(event).map((item) => (
+                            <DropdownMenuItem key={item.label} onClick={item.action} className="gap-2 text-sm">
+                              {item.icon}
+                              {item.label}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
 
-                    <Button
-                      size="sm"
-                      className="h-8 flex-1 gap-1.5"
-                      onClick={(e) => handleInviteClick(event.id, e)}
-                    >
-                      <Users className="w-3.5 h-3.5" />
-                      Invite
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      )}
+                      <Button
+                        size="sm"
+                        className="h-8 flex-1 gap-1.5"
+                        onClick={(e) => handleInviteClick(event.id, e)}
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        Invite
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
 
       {/* Show Older Events */}
       {olderEventsByMonth.length > 0 && (

@@ -1,15 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { useState, useEffect, useMemo } from 'react'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
 import { Project, ProjectStatus, Role, Permission } from '@/lib/types'
-import { Plus, Trash2, Calendar } from 'lucide-react'
+import { Plus, Calendar, MoreVertical, Trash2, ExternalLink } from 'lucide-react'
 import { canSee, recordActivityLog } from '@/lib/constants'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -17,20 +14,27 @@ import { getAllRoles, getAllPermissions } from '@/services/auth-services'
 import { AddProjectModal } from '@/components/modals/add-project-modal'
 import { useUserIP } from '@/lib/userUserIp'
 import { toast } from 'sonner'
-import { createProject, deleteProject, getAllProjects, updateProject } from '@/services/project-service'
+import { createProject, deleteProject, getAllProjects } from '@/services/project-service'
+import { Spinner } from '@/components/ui/spinner'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
+import { FullScreenLoader } from '@/components/fullScreenLoader'
+
+type FilterType = 'all' | 'planning' | 'ongoing' | 'completed'
 
 export default function ProjectsPage() {
   const { user } = useAuth()
   const { ip } = useUserIP()
   const [projects, setProjects] = useState<Project[]>([])
-  const [showForm, setShowForm] = useState(false)
   const [showAddProjectModal, setShowAddProjectModal] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    status: ProjectStatus.PLANNING
-  })
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all')
 
   const [roles, setRoles] = useState<Role[]>([])
   const [permissions, setPermissions] = useState<Permission[]>([])
@@ -39,7 +43,7 @@ export default function ProjectsPage() {
     const supabase = getSupabaseBrowserClient()
     if (!supabase) throw new Error('Supabase is not configured.')
     const rows = await getAllProjects(supabase)
-    setProjects(rows.filter(project => user?.role === 'sg' || project.branch_id === user?.branchId))
+    setProjects(rows.filter(project => user?.role === 'Secretary General' || project.branch_id === user?.branchId))
   }
 
   useEffect(() => {
@@ -48,7 +52,7 @@ export default function ProjectsPage() {
   }, [user])
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) return
 
     let cancelled = false
 
@@ -78,7 +82,7 @@ export default function ProjectsPage() {
     return () => {
       cancelled = true
     }
-  }, [user]);
+  }, [user])
 
   // Can only access if authorized
   if (canSee(user?.role ?? '', roles.map(role => role.id))) {
@@ -93,47 +97,48 @@ export default function ProjectsPage() {
     )
   }
 
-  const statusColors: Record<ProjectStatus, string> = {
-    [ProjectStatus.PLANNING]: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
-    [ProjectStatus.STARTING]: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
-    [ProjectStatus.ONGOING]: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
-    [ProjectStatus.IN_PROGRESS]: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
-    [ProjectStatus.COMPLETED]: 'bg-green-500/20 text-green-700 dark:text-green-400',
-    [ProjectStatus.FINISHED]: 'bg-green-500/20 text-green-700 dark:text-green-400',
+  const isPlanning = (status: ProjectStatus) =>
+    status === ProjectStatus.PLANNING || status === ProjectStatus.STARTING
+
+  const isOngoing = (status: ProjectStatus) =>
+    status === ProjectStatus.ONGOING || status === ProjectStatus.IN_PROGRESS
+
+  const isCompleted = (status: ProjectStatus) =>
+    status === ProjectStatus.COMPLETED || status === ProjectStatus.FINISHED
+
+  const stats = useMemo(() => {
+    const total = projects.length
+    const planning = projects.filter(p => isPlanning(p.status)).length
+    const ongoing = projects.filter(p => isOngoing(p.status)).length
+    const completed = projects.filter(p => isCompleted(p.status)).length
+    return { total, planning, ongoing, completed }
+  }, [projects])
+
+  const filteredProjects = useMemo(() => {
+    if (activeFilter === 'all') return projects
+    if (activeFilter === 'planning') return projects.filter(p => isPlanning(p.status))
+    if (activeFilter === 'ongoing') return projects.filter(p => isOngoing(p.status))
+    return projects.filter(p => isCompleted(p.status))
+  }, [projects, activeFilter])
+
+  const getStatusBorderColor = (status: ProjectStatus) => {
+    if (isPlanning(status)) return 'border-l-blue-500'
+    if (isOngoing(status)) return 'border-l-amber-500'
+    if (isCompleted(status)) return 'border-l-emerald-500'
+    return 'border-l-muted-foreground'
   }
 
-  const handleAddProject = async () => {
-    if (!formData.title || !formData.description || !user) return
-    try {
-      const supabase = getSupabaseBrowserClient()
-      if (!supabase) throw new Error('Supabase is not configured.')
-      const newProject = await createProject(supabase, {
-        title: formData.title, description: formData.description, status: formData.status,
-        branch_id: user.branchId, coordinator: '', budget: 0, timeline: '', start_date: new Date(),
-        created_by: user.id, created_at: new Date(),
-      } as Project)
-      setProjects(current => [newProject, ...current])
-      toast.success('Project created.')
-    setFormData({ title: '', description: '', status: ProjectStatus.PLANNING })
-    setShowForm(false)
-      recordActivityLog('Initialized', `Initialized project - ${newProject.title}`, user.id, user.name, ip!)
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to create project.') }
-  }
-
-  const handleUpdateStatus = async (id: string, newStatus: ProjectStatus) => {
-    const project = projects.find(item => item.id === id)
-    if (!project) return
-    try {
-      const supabase = getSupabaseBrowserClient()
-      if (!supabase) throw new Error('Supabase is not configured.')
-      const updated = await updateProject(supabase, id, { ...project, status: newStatus })
-      setProjects(current => current.map(item => item.id === id ? updated : item))
-      toast.success('Project status updated.')
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to update project status.') }
+  const getStatusBadgeClass = (status: ProjectStatus) => {
+    if (isPlanning(status)) return 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/20'
+    if (isOngoing(status)) return 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20'
+    if (isCompleted(status)) return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20'
+    return 'bg-muted text-muted-foreground'
   }
 
   const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure to delete the project? This action is irreversible!")) return
     try {
+      setIsDeleting(true)
       const supabase = getSupabaseBrowserClient()
       if (!supabase) throw new Error('Supabase is not configured.')
       await deleteProject(supabase, id)
@@ -141,20 +146,26 @@ export default function ProjectsPage() {
       setProjects(current => current.filter(project => project.id !== id))
       toast.success('Project deleted.')
       recordActivityLog('Cancel', `Cancelled & removed project - ${deleted?.title}`, user?.id, user?.name, ip!)
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to delete project.') }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to delete project.')
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
-  const statusOptions = [
-    ProjectStatus.PLANNING,
-    ProjectStatus.ONGOING,
-    ProjectStatus.COMPLETED,
+  const filterCards: { key: FilterType; label: string; value: number; accent: string }[] = [
+    { key: 'all', label: 'Total Projects', value: stats.total, accent: 'border-t-primary' },
+    { key: 'planning', label: 'Under-Planning', value: stats.planning, accent: 'border-t-blue-500' },
+    { key: 'ongoing', label: 'On-Going Projects', value: stats.ongoing, accent: 'border-t-amber-500' },
+    { key: 'completed', label: 'Completed Projects', value: stats.completed, accent: 'border-t-emerald-500' },
   ]
 
   return (
     <div className="p-6 space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Projects</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Projects</h1>
           <p className="text-muted-foreground mt-1">Manage union projects and initiatives</p>
         </div>
         <Button onClick={() => setShowAddProjectModal(true)} className="gap-2">
@@ -163,109 +174,115 @@ export default function ProjectsPage() {
         </Button>
       </div>
 
-      {showForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Create New Project</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Project Title</Label>
-              <Input
-                id="title"
-                placeholder="e.g., Skills Training Initiative"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                placeholder="Project description and objectives"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={4}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="status">Initial Status</Label>
-              <select
-                id="status"
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as ProjectStatus })}
-                className="w-full px-3 py-2 border border-border rounded-lg bg-background"
-              >
-                {statusOptions.map(status => (
-                  <option key={status} value={status}>
-                    {status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleAddProject}>Create Project</Button>
-              <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Stats + Filters */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {filterCards.map(card => (
+          <button
+            key={card.key}
+            type="button"
+            onClick={() => setActiveFilter(card.key)}
+            className={cn(
+              'text-left rounded-xl border bg-card p-5 shadow-sm transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'border-t-4',
+              card.accent,
+              activeFilter === card.key
+                ? 'ring-2 ring-primary/30 bg-primary/5'
+                : 'hover:bg-muted/40'
+            )}
+          >
+            <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
+            <p className="mt-2 text-3xl font-bold tracking-tight">{card.value}</p>
+          </button>
+        ))}
+      </div>
 
-      <div className="grid gap-4">
-        {projects.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6 text-center text-muted-foreground">
-              No projects found
-            </CardContent>
-          </Card>
+      {/* Project list */}
+      <div className="space-y-3">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
+            <Spinner className="h-5 w-5" />
+            <span>Loading projects...</span>
+          </div>
+        ) : (!isLoading && filteredProjects.length === 0) ? (
+          <div className="rounded-xl border border-dashed bg-muted/30 py-16 text-center text-muted-foreground">
+            {activeFilter === 'all'
+              ? 'No projects found'
+              : `No ${filterCards.find(c => c.key === activeFilter)?.label.toLowerCase()} found`}
+          </div>
         ) : (
-          projects.map((project) => (
-            <Card key={project.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <Link href={`/projects/${project.id}`} className="text-lg font-semibold text-primary hover:underline">
-                        {project.title}
-                      </Link>
-                      <Badge className={statusColors[project.status]}>
-                        {project.status?.replace(/_/g, ' ')}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-3">{project.description}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(project.id)}
-                    className="text-destructive"
+          filteredProjects.map(project => (
+            <div
+              key={project.id}
+              className={cn(
+                'group flex w-full items-center gap-4 rounded-lg bg-card px-5 py-4 shadow-sm transition-shadow hover:shadow-md',
+                'border-l-4 border-y-0 border-r-0',
+                getStatusBorderColor(project.status)
+              )}
+            >
+              {/* Main content */}
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link
+                    href={`/projects/${project.id}`}
+                    className="truncate text-base font-semibold text-foreground hover:text-primary hover:underline"
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                    {project.title}
+                  </Link>
+                  <Badge
+                    variant="outline"
+                    className={cn('shrink-0 capitalize font-medium', getStatusBadgeClass(project.status))}
+                  >
+                    {project.status?.replace(/_/g, ' ').toLowerCase()}
+                  </Badge>
                 </div>
 
-                <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
-                  <Calendar className="w-4 h-4" />
-                  <span>Started: {new Date(project?.start_date!).toLocaleDateString()}</span>
-                </div>
+                {project.description && (
+                  <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">
+                    {project.description}
+                  </p>
+                )}
 
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold">Update Status</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {statusOptions.map(status => (
-                      <Button
-                        key={status}
-                        variant={project.status === status ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => handleUpdateStatus(project.id, status)}
-                      >
-                        {status.replace(/_/g, ' ')}
-                      </Button>
-                    ))}
-                  </div>
+                <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Calendar className="h-3.5 w-3.5" />
+                  <span>
+                    Started:{' '}
+                    {project.start_date
+                      ? new Date(project.start_date).toLocaleDateString()
+                      : '—'}
+                  </span>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+
+              {/* Actions menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  aria-label="Open project actions"
+                  className={buttonVariants({
+                    variant: 'ghost',
+                    size: 'icon',
+                    className: 'h-8 w-8 shrink-0 text-muted-foreground opacity-70 group-hover:opacity-100',
+                  })}
+                >
+                  <MoreVertical className="h-4 w-4" />
+                  <span className="sr-only">Open menu</span>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem>
+                    <Link href={`/projects/${project.id}`} className="flex flex-wrap cursor-pointer">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      View project
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive cursor-pointer"
+                    onClick={() => handleDelete(project.id)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           ))
         )}
       </div>
@@ -273,24 +290,35 @@ export default function ProjectsPage() {
       <AddProjectModal
         open={showAddProjectModal}
         onOpenChange={setShowAddProjectModal}
-        onSubmit={(project) => {
+        onSubmit={project => {
           setIsLoading(true)
           const run = async () => {
             try {
               const supabase = getSupabaseBrowserClient()
               if (!supabase || !user) throw new Error('Supabase is not configured.')
-              const newProject = await createProject(supabase, { ...project, branch_id: user.branchId, created_by: user.id, start_date: new Date(), created_at: new Date() } as Project)
+              const newProject = await createProject(supabase, {
+                ...project,
+                branch_id: user.branchId || undefined,
+                status: ProjectStatus.PLANNING,
+                created_by: user.id,
+                start_date: new Date(),
+                created_at: new Date(),
+              } as Project)
               setProjects(current => [newProject, ...current])
               setShowAddProjectModal(false)
-              toast.success('Project created.')
-            } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to create project.') }
-            finally { setIsLoading(false) }
+              toast.success(`Project ${newProject.title} created.`)
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : 'Unable to create project.')
+            } finally {
+              setIsLoading(false)
+            }
           }
           void run()
         }}
         isLoading={isLoading}
-        branchId={user?.branchId || 'branch_main'}
       />
+
+      <FullScreenLoader isLoading={isDeleting} />
     </div>
   )
 }

@@ -11,12 +11,11 @@ import { Project, ProjectStatus } from '@/lib/types'
 interface AddProjectModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: (project: Omit<Project, 'id' | 'createdAt'>) => void
+  onSubmit: (project: Omit<Project, 'id' | 'createdAt' | 'created_by'>) => void
   isLoading?: boolean
-  branchId: string
 }
 
-export function AddProjectModal({ open, onOpenChange, onSubmit, isLoading, branchId }: AddProjectModalProps) {
+export function AddProjectModal({ open, onOpenChange, onSubmit, isLoading }: AddProjectModalProps) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -40,7 +39,7 @@ export function AddProjectModal({ open, onOpenChange, onSubmit, isLoading, branc
       budget: parseFloat(formData.budget),
       timeline: formData.timeline,
       status: formData.status,
-      branchId
+      created_at: new Date(),
     })
 
     setFormData({
@@ -49,9 +48,9 @@ export function AddProjectModal({ open, onOpenChange, onSubmit, isLoading, branc
       coordinator: '',
       budget: '',
       timeline: '',
-      status: 'planning'
+      status: ProjectStatus.PLANNING
     })
-    onOpenChange(false)
+    !isLoading && onOpenChange(false)
   }
 
   return (
@@ -117,20 +116,6 @@ export function AddProjectModal({ open, onOpenChange, onSubmit, isLoading, branc
                 placeholder="e.g., 3 months"
               />
             </div>
-          </div>
-
-          <div>
-            <Label htmlFor="status">Status</Label>
-            <select
-              id="status"
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value as ProjectStatus })}
-              className="w-full px-3 py-2 border border-border rounded-md text-sm"
-            >
-              <option value="planning">Planning</option>
-              <option value="ongoing">Ongoing</option>
-              <option value="completed">Completed</option>
-            </select>
           </div>
 
           <div className="flex gap-2 justify-end pt-4">

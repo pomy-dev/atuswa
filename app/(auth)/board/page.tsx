@@ -188,7 +188,7 @@ export default function UserManagementPage() {
       const usersList = loadedUsers ?? []
       const loadedLogs = await getActivityLogs(supabase, session)
       const usersById = new Map(usersList.map((loadedUser) => [loadedUser.id, loadedUser.full_name]))
-      
+
       const logsWithUserNames = (loadedLogs ?? []).map(
         (log: ActivityLogEntry & { user_id?: string }) => {
           const logUserId = log.userId ?? log.user_id
@@ -1086,11 +1086,12 @@ export default function UserManagementPage() {
 
               <div className="flex flex-wrap gap-2">
                 <DropdownMenu>
-                  <DropdownMenuTrigger>
-                    <Button variant="outline" className="gap-2" disabled={exporting}>
-                      <Download className="w-4 h-4" />
-                      Generate Report
-                    </Button>
+                  <DropdownMenuTrigger
+                    disabled={exporting}
+                    className={buttonVariants({ variant: 'outline', className: 'gap-2' })}
+                  >
+                    <Download className="w-4 h-4" />
+                    Generate Report
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={generateUsersExcel}>
@@ -1279,11 +1280,12 @@ export default function UserManagementPage() {
               </div>
 
               <DropdownMenu>
-                <DropdownMenuTrigger>
-                  <Button variant="outline" className="gap-2" disabled={exporting}>
-                    <Download className="w-4 h-4" />
-                    Generate Report
-                  </Button>
+                <DropdownMenuTrigger
+                  disabled={exporting}
+                  className={buttonVariants({ variant: 'outline', className: 'gap-2' })}
+                >
+                  <Download className="w-4 h-4" />
+                  Generate Report
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={generateLogsExcel}>
