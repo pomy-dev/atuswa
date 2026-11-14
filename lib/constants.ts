@@ -82,7 +82,7 @@ export const menuItems = [
     label: 'Users',
     href: '/board',
     icon: UserCog,
-    accesses: ['Overview', 'Branches', 'Users', 'Tucoswa Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
+    accesses: ['Overview', 'Branches', 'Users', 'Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
   },
   {
     label: 'Tucoswa Affiliates',

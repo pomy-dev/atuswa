@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/spinner'
 import { Affiliate, AffiliateStatus, FinancialStanding } from '@/lib/types'
 
-export type AffiliateDraft = Omit<Affiliate, 'id' | 'createdAt' | 'updatedAt' | 'statusHistory' | 'documents' | 'active'> & { documentNames?: string }
+export type AffiliateDraft = Omit<Affiliate, 'id' | 'created_at' | 'updated_at' | 'status_history' | 'documents' | 'active'> & { documentNames?: string }
 
 interface RegisterAffiliateModalProps {
   open: boolean
@@ -38,7 +38,43 @@ function toForm(affiliate?: Affiliate | null): FormData {
   if (!affiliate) return emptyForm
   const leader = (position: string) => affiliate.leadership.find(item => item.position === position)?.name || ''
   return {
-    affiliateId: affiliate.affiliateId, officialName: affiliate.officialName, acronym: affiliate.acronym, registrationNumber: affiliate.registrationNumber || '', affiliationDate: affiliate.affiliationDate, foundingDate: affiliate.foundingDate || '', physicalAddress: affiliate.physicalAddress, postalAddress: affiliate.postalAddress || '', phoneNumbers: affiliate.phoneNumbers.join(', '), email: affiliate.email || '', website: affiliate.website || '', socialMedia: affiliate.socialMedia || '', correspondenceName: affiliate.correspondenceContact.name, correspondenceEmail: affiliate.correspondenceContact.email || '', correspondencePhone: affiliate.correspondenceContact.phone || '', presidentName: leader('President'), secretaryName: leader('Secretary General'), treasurerName: leader('Treasurer'), lastCongressDate: affiliate.lastCongressDate || '', constitutionVersion: affiliate.constitutionVersion || '', executiveCommitteeSize: String(affiliate.executiveCommitteeSize), declaredMembership: String(affiliate.declaredMembership), paidUpMembership: String(affiliate.paidUpMembership), femaleMembers: String(affiliate.genderBreakdown.female), maleMembers: String(affiliate.genderBreakdown.male), otherMembers: String(affiliate.genderBreakdown.other), ageGroups: affiliate.ageGroups, sectors: affiliate.sectors.join(', '), regions: affiliate.regions.join(', '), shopStewards: String(affiliate.shopStewards), duesRate: affiliate.duesRate || '', paymentHistory: affiliate.paymentHistory || '', financialStanding: affiliate.financialStanding, bankDetails: affiliate.bankDetails || '', status: affiliate.status, notes: affiliate.notes || '', documentNames: affiliate.documents.map(document => document.name).join(', ')
+    affiliateId: affiliate.affiliate_id,
+    officialName: affiliate.official_name,
+    acronym: affiliate.acronym,
+    registrationNumber: affiliate.registration_number || '',
+    affiliationDate: affiliate.affiliation_date,
+    foundingDate: affiliate.founding_date || '',
+    physicalAddress: affiliate.physical_address,
+    postalAddress: affiliate.postal_address || '',
+    phoneNumbers: affiliate.phone_numbers.join(', '),
+    email: affiliate.email || '',
+    website: affiliate.website || '',
+    socialMedia: affiliate.social_media || '',
+    correspondenceName: affiliate.correspondence_contact.name,
+    correspondenceEmail: affiliate.correspondence_contact.email || '',
+    correspondencePhone: affiliate.correspondence_contact.phone || '',
+    presidentName: leader('President'),
+    secretaryName: leader('Secretary General'),
+    treasurerName: leader('Treasurer'),
+    lastCongressDate: affiliate.last_congress_date || '',
+    constitutionVersion: affiliate.constitution_version || '',
+    executiveCommitteeSize: String(affiliate.executive_committee_size),
+    declaredMembership: String(affiliate.declared_membership),
+    paidUpMembership: String(affiliate.paid_up_membership),
+    femaleMembers: String(affiliate.gender_breakdown.female),
+    maleMembers: String(affiliate.gender_breakdown.male),
+    otherMembers: String(affiliate.gender_breakdown.other),
+    ageGroups: affiliate.age_groups,
+    sectors: affiliate.sectors.join(', '),
+    regions: affiliate.regions.join(', '),
+    shopStewards: String(affiliate.shop_stewards),
+    duesRate: affiliate.dues_rate || '',
+    paymentHistory: affiliate.payment_history || '',
+    financialStanding: affiliate.financial_standing,
+    bankDetails: affiliate.bank_details || '',
+    status: affiliate.status,
+    notes: affiliate.notes || '',
+    documentNames: affiliate.documents.map(document => document.name).join(', ')
   }
 }
 
@@ -68,10 +104,46 @@ export function RegisterAffiliateModal({ open, onOpenChange, onSubmit, initialAf
     ].filter(item => item.name.trim())
 
     onSubmit({
-      affiliateId: formData.affiliateId.trim() || `TUC-AFF-${Date.now().toString().slice(-4)}`,
-      officialName: formData.officialName.trim(), acronym: formData.acronym.trim().toUpperCase(), registrationNumber: formData.registrationNumber.trim(), affiliationDate: formData.affiliationDate, foundingDate: formData.foundingDate, physicalAddress: formData.physicalAddress.trim(), postalAddress: formData.postalAddress.trim(), phoneNumbers: splitList(formData.phoneNumbers), email: formData.email.trim(), website: formData.website.trim(), socialMedia: formData.socialMedia.trim(), correspondenceContact: { name: formData.correspondenceName.trim(), email: formData.correspondenceEmail.trim(), phone: formData.correspondencePhone.trim() }, leadership, lastCongressDate: formData.lastCongressDate, constitutionVersion: formData.constitutionVersion.trim(), executiveCommitteeSize: numberValue(formData.executiveCommitteeSize), declaredMembership: numberValue(formData.declaredMembership), paidUpMembership: numberValue(formData.paidUpMembership), genderBreakdown: { female: numberValue(formData.femaleMembers), male: numberValue(formData.maleMembers), other: numberValue(formData.otherMembers) }, ageGroups: formData.ageGroups.trim(), sectors: splitList(formData.sectors), regions: splitList(formData.regions), shopStewards: numberValue(formData.shopStewards), duesRate: formData.duesRate.trim(), paymentHistory: formData.paymentHistory.trim(), financialStanding: formData.financialStanding, bankDetails: formData.bankDetails.trim(), status: formData.status, notes: formData.notes.trim(), documentNames: formData.documentNames.trim()
+      affiliate_id: formData.affiliateId.trim() || `TUC-AFF-${Date.now().toString().slice(-4)}`,
+      official_name: formData.officialName.trim(),
+      acronym: formData.acronym.trim().toUpperCase(),
+      registration_number: formData.registrationNumber.trim(),
+      affiliation_date: formData.affiliationDate,
+      founding_date: formData.foundingDate,
+      physical_address: formData.physicalAddress.trim(),
+      postal_address: formData.postalAddress.trim(),
+      phone_numbers: splitList(formData.phoneNumbers),
+      email: formData.email.trim(),
+      website: formData.website.trim(),
+      social_media: formData.socialMedia.trim(),
+      correspondence_contact: {
+        name: formData.correspondenceName.trim(),
+        email: formData.correspondenceEmail.trim(),
+        phone: formData.correspondencePhone.trim()
+      },
+      leadership,
+      last_congress_date: formData.lastCongressDate,
+      constitution_version: formData.constitutionVersion.trim(),
+      executive_committee_size: numberValue(formData.executiveCommitteeSize),
+      declared_membership: numberValue(formData.declaredMembership),
+      paid_up_membership: numberValue(formData.paidUpMembership),
+      gender_breakdown: {
+        female: numberValue(formData.femaleMembers),
+        male: numberValue(formData.maleMembers), other: numberValue(formData.otherMembers)
+      },
+      age_groups: formData.ageGroups.trim(),
+      sectors: splitList(formData.sectors),
+      regions: splitList(formData.regions),
+      shop_stewards: numberValue(formData.shopStewards),
+      dues_rate: formData.duesRate.trim(),
+      payment_history: formData.paymentHistory.trim(),
+      financial_standing: formData.financialStanding,
+      bank_details: formData.bankDetails.trim(),
+      status: formData.status,
+      notes: formData.notes.trim(),
+      documentNames: formData.documentNames.trim()
     })
-    onOpenChange(false)
+    !isLoading && onOpenChange(false)
   }
 
   const field = (key: keyof FormData, label: string, props: ComponentProps<typeof Input> = {}) => (
@@ -96,7 +168,7 @@ export function RegisterAffiliateModal({ open, onOpenChange, onSubmit, initialAf
               <p className="text-sm text-muted-foreground">The master record for a TUCOSWA affiliate.</p>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
-              {field('affiliateId', 'Unique Affiliate ID', { placeholder: 'Generated if blank' })}
+              {/* {field('affiliateId', 'Unique Affiliate ID', { placeholder: 'Generated if blank' })} */}
               {field('officialName', 'Official Name *', { required: true, className: 'md:col-span-2' })}
               {field('acronym', 'Acronym *', { required: true })}
               {field('registrationNumber', 'Incorporation Number')}

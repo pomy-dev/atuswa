@@ -43,6 +43,7 @@ export interface User {
   name: string
   role: string
   branchId: string
+  affiliateId?: string
   photo?: string
   createdAt: Date
 }
@@ -90,14 +91,14 @@ export interface AffiliateLeadership {
   name: string
   email?: string
   phone?: string
-  termOfOffice?: string
+  term_of_office?: string
 }
 
 export interface AffiliateStatusChange {
   status: AffiliateStatus
   reason: string
-  changedAt: Date
-  changedBy: string
+  changed_at?: Date
+  changed_by?: string
 }
 
 export interface AffiliateDocument {
@@ -106,68 +107,75 @@ export interface AffiliateDocument {
   category: 'Constitution' | 'Registration' | 'Minutes' | 'Resolution' | 'Financial' | 'Other'
   version?: string
   url?: string
-  uploadedAt: Date
+  uploaded_at?: Date
 }
 
 export interface Affiliate {
   id: string
-  affiliateId: string
-  officialName: string
+  affiliate_id: string
+  official_name: string
   acronym: string
-  registrationNumber?: string
-  affiliationDate: string
-  foundingDate?: string
-  physicalAddress: string
-  postalAddress?: string
-  phoneNumbers: string[]
+  registration_number?: string
+  affiliation_date: string
+  founding_date?: string
+  physical_address: string
+  postal_address?: string
+  phone_numbers: string[]
   email?: string
   website?: string
-  socialMedia?: string
-  correspondenceContact: { name: string; email?: string; phone?: string }
+  social_media?: string
+  correspondence_contact: { name: string; email?: string; phone?: string }
   leadership: AffiliateLeadership[]
-  lastCongressDate?: string
-  constitutionVersion?: string
-  executiveCommitteeSize: number
-  declaredMembership: number
-  paidUpMembership: number
-  genderBreakdown: { female: number; male: number; other: number }
-  ageGroups: string
+  last_congress_date?: string
+  constitution_version?: string
+  executive_committee_size: number
+  declared_membership: number
+  paid_up_membership: number
+  gender_breakdown: { female: number; male: number; other: number }
+  age_groups: string
   sectors: string[]
   regions: string[]
-  shopStewards: number
-  duesRate?: string
-  paymentHistory?: string
-  financialStanding: FinancialStanding
-  bankDetails?: string
+  shop_stewards: number
+  dues_rate?: string
+  payment_history?: string
+  financial_standing: FinancialStanding
+  bank_details?: string
   status: AffiliateStatus
-  statusHistory: AffiliateStatusChange[]
+  status_history: AffiliateStatusChange[]
   documents: AffiliateDocument[]
   notes?: string
   active: boolean
-  createdAt: Date
-  updatedAt: Date
+  created_at?: Date
+  updated_at?: Date
 }
 
 // Member Types
 export interface Member {
   id: string
-  branchId?: string
-  affiliateId?: string
+  branch_id?: string
+  affiliate_id?: string
   name: string
   email: string
-  memberId: string
+  member_id: string
   phone: string
   address: string
   dob: string
   workplace: string
-  nextOfKin: string
-  nextOfKinPhone: string
+  next_of_kin: string
+  next_of_kin_phone: string
   gender: 'Male' | 'Female' | 'Other'
-  jobCategory?: string
-  subscriptionStatus?: 'Paid' | 'Pending' | 'In arrears'
-  tucoswaStatus?: 'Active' | 'Resigned' | 'Deceased' | 'Transferred'
+  job_category?: string
+  subscription_status?: 'Paid' | 'Pending' | 'In arrears'
+  tucoswa_status?: 'Active' | 'Resigned' | 'Deceased' | 'Transferred'
   photo?: string
-  joinDate: Date
+  join_date: Date
+}
+
+export interface TransferEmailDetails {
+  from_branch?: string;
+  to_branch?: string;
+  from_affiliate?: string;
+  to_affiliate?: string;
 }
 
 // Extend these according to your actual data model

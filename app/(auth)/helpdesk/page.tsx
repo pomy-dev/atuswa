@@ -119,8 +119,8 @@ export default function HelpdeskPage() {
       const supabase = getSupabaseBrowserClient()
       if (!supabase) throw new Error('Supabase is not configured.')
       const newCase = await createHelpdeskCase(supabase, {
-        branch_id: user?.branchId,
-        affiliate_id: null,
+        branch_id: caseData.branch_id ?? user?.branchId ?? null,
+        affiliate_id: caseData.affiliate_id ?? null,
         title: caseData.title!,
         member_name: caseData.member_name!,
         member_phone: caseData.member_phone!,

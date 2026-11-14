@@ -25,13 +25,16 @@ export async function createHelpdeskCase(
     throw new Error('User not authenticated')
   }
 
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile } = await supabase
     .from('profiles')
     .select('full_name')
     .eq('id', user.id)
     .single()
 
-  if (profileError) throw profileError
+  const createdByName = profile?.full_name
+    ?? user.user_metadata?.full_name
+    ?? user.email
+    ?? ''
 
   const { data: newCase, error } = await supabase
     .from('helpdesk_cases')
@@ -41,7 +44,7 @@ export async function createHelpdeskCase(
       branch_id: data.branch_id === '' ? null : data.branch_id,
       affiliate_id: data.affiliate_id === '' ? null : data.affiliate_id,
       created_by: user.id,
-      created_by_name: profile.full_name,
+      created_by_name: createdByName,
       status: 'pending',
     })
     .select()

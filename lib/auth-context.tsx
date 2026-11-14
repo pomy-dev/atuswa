@@ -27,6 +27,7 @@ async function mapSessionToUser(client: SupabaseClient, session: Session | null)
     name: profile[0].full_name,
     role: profile[0].role?.role_name ?? 'user',
     branchId: profile[0].branch_id ?? '',
+    affiliateId: profile[0].affiliate_id ?? undefined,
     photo: profile[0].photo_url ?? undefined,
     createdAt: new Date(profile[0].created_at)
   }

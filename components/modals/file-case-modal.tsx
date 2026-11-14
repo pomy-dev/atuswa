@@ -15,11 +15,12 @@ import { Upload, X } from 'lucide-react'
 interface FileCaseModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: (caseData: Partial<HelpDeskCase>) => void
+  onSubmit: (caseData: Partial<HelpDeskCase>) => void | Promise<void>
   isLoading?: boolean
+  affiliate?: { id: string; name: string }
 }
 
-export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileCaseModalProps) {
+export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading, affiliate }: FileCaseModalProps) {
   const { user } = useAuth()
   const [branches] = useState([
     { id: 'lagos', name: 'Manzini Branch' },
@@ -66,23 +67,24 @@ export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileC
     }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user && !formData.branchId) {
+    if (!user && !affiliate && !formData.branchId) {
       alert('Please select a branch')
       return
     }
 
     const newCase: Partial<HelpDeskCase> = {
       title: formData.title,
-      member_name: formData.memberName,
+      member_name: affiliate?.name ?? formData.memberName,
       member_phone: formData.memberPhone,
       member_email: formData.memberEmail,
       description: formData.description,
-      branch_id: user?.branchId ?? formData.branchId,
+      branch_id: affiliate ? null : user?.branchId ?? formData.branchId,
+      affiliate_id: affiliate?.id,
     }
 
-    onSubmit(newCase)
+    await onSubmit(newCase)
     setFormData({ title: '', memberName: '', memberPhone: '', memberEmail: '', description: '', branchId: '', documents: [] })
     setUploadedFiles([])
   }
@@ -106,16 +108,23 @@ export function FileCaseModal({ open, onOpenChange, onSubmit, isLoading }: FileC
             />
           </div>
 
-          <div>
-            <Label htmlFor="memberName">Member Name</Label>
-            <Input
-              id="memberName"
-              placeholder="Full name"
-              value={formData.memberName}
-              onChange={(e) => setFormData({ ...formData, memberName: e.target.value })}
-              required
-            />
-          </div>
+          {affiliate ? (
+            <div>
+              <Label htmlFor="case-affiliate">Affiliate</Label>
+              <Input id="case-affiliate" value={affiliate.name} readOnly aria-readonly="true" />
+            </div>
+          ) : (
+            <div>
+              <Label htmlFor="memberName">Member Name</Label>
+              <Input
+                id="memberName"
+                placeholder="Full name"
+                value={formData.memberName}
+                onChange={(e) => setFormData({ ...formData, memberName: e.target.value })}
+                required
+              />
+            </div>
+          )}
 
           <div>
             <Label htmlFor="memberPhone">Phone</Label>

@@ -336,6 +336,12 @@ create policy "Affiliate can read own event invitations" on public.event_invitat
   for select to authenticated using (exists (select 1 from public.events x where x.id = event_id and x.affiliate_id = (select p.affiliate_id from public.profiles p where p.id = auth.uid())));
 create policy "Affiliate can read own helpdesk cases" on public.helpdesk_cases
   for select to authenticated using (affiliate_id = (select p.affiliate_id from public.profiles p where p.id = auth.uid()));
+drop policy if exists "Affiliate can submit own helpdesk cases" on public.helpdesk_cases;
+create policy "Affiliate can submit own helpdesk cases" on public.helpdesk_cases
+  for insert to authenticated with check (
+    affiliate_id = (select p.affiliate_id from public.profiles p where p.id = auth.uid())
+    and created_by = auth.uid()
+  );
 create policy "Affiliate can read own helpdesk handlers" on public.helpdesk_handlers
   for select to authenticated using (exists (select 1 from public.helpdesk_cases x where x.id = case_id and x.affiliate_id = (select p.affiliate_id from public.profiles p where p.id = auth.uid())));
 create policy "Affiliate can read own helpdesk notes" on public.helpdesk_notes

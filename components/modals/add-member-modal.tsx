@@ -8,23 +8,21 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Member, UserRole } from '@/lib/types'
+import { getAllBranches } from '@/services/branch-service'
 import { useAuth } from '@/lib/auth-context'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 
 interface AddMemberModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: (member: Omit<Member, 'id' | 'joinDate'>) => void
+  onSubmit: (member: Omit<Member, 'id' | 'join_date'>) => void | Promise<void>
   isLoading?: boolean
   branchId?: string
 }
 
 export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branchId }: AddMemberModalProps) {
   const { user } = useAuth()
-  const [branches] = useState([
-    { id: 'lagos', name: 'Manzini Branch' },
-    { id: 'abuja', name: 'Siteki Branch' },
-    { id: 'port-harcourt', name: 'Mhlume Branch' }
-  ])
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
 
   const [formData, setFormData] = useState({
     memberId: '',
@@ -41,7 +39,11 @@ export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branch
   })
 
   useEffect(() => {
-    if (user?.role === UserRole.BRANCH_ADMIN && user?.branchId) {
+    void fetchBranches().catch((error: unknown) => {
+      console.error('Unable to load branches:', error)
+    })
+
+    if (user?.role === "Branch Admin" && user?.branchId) {
       setFormData(prev => ({
         ...prev,
         selectedBranch: user.branchId
@@ -49,7 +51,26 @@ export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branch
     }
   }, [user, open])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const fetchBranches = async () => {
+    try {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const branches = await getAllBranches(supabase);
+      const normalized = branches.map((b: any) => ({
+        ...b,
+        name: b.branch_name,
+        isActive: b.is_active,
+        contactEmail: b.contact_email,
+        adminId: b.admin_id ?? b.adminId,
+        createdAt: b.created_at ? new Date(b.created_at) : new Date(),
+      }))
+      setBranches(normalized)
+    } catch (error) {
+      console.error('Error fetching branches:', error)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.name || !formData.email || !formData.phone) {
       alert('Please fill in required fields')
@@ -60,18 +81,18 @@ export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branch
       return
     }
 
-    onSubmit({
-      memberId: formData.memberId,
+    await onSubmit({
+      member_id: formData.memberId,
       name: formData.name,
       email: formData.email,
       phone: formData.phone,
       gender: formData.gender as 'Male' | 'Female' | 'Other',
       dob: formData.dob,
       workplace: formData.workplace,
-      branchId: formData.selectedBranch,
+      branch_id: user?.role === UserRole.BRANCH_ADMIN ? branchId : formData.selectedBranch,
       address: formData.address,
-      nextOfKin: formData.nextOfKinName,
-      nextOfKinPhone: formData.nextOfKinPhone
+      next_of_kin: formData.nextOfKinName,
+      next_of_kin_phone: formData.nextOfKinPhone
     })
 
     setFormData({
@@ -110,27 +131,29 @@ export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branch
             />
           </div>
 
-          <div>
-            <Label htmlFor="email">Email *</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="email@example.com"
-              required
-            />
-          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="email">Email *</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="email@example.com"
+                required
+              />
+            </div>
 
-          <div>
-            <Label htmlFor="phone">Phone *</Label>
-            <Input
-              id="phone"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              placeholder="+268-XXX-XXXX"
-              required
-            />
+            <div>
+              <Label htmlFor="phone">Phone *</Label>
+              <Input
+                id="phone"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="+268-XXX-XXXX"
+                required
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -222,7 +245,7 @@ export function AddMemberModal({ open, onOpenChange, onSubmit, isLoading, branch
               >
                 <option value=''>Select a branch</option>
                 {branches.map(branch => (
-                  <option key={branch.id} value={branch.name}>
+                  <option key={branch.id} value={branch.id}>
                     {branch.name}
                   </option>
                 ))}
