@@ -312,6 +312,35 @@ export const deleteMember = (
 
 const PAYMENTS = "affiliate_payments";
 
+const PAYMENT_RECEIPTS_BUCKET = "affiliate-payment-receipts";
+
+export async function uploadAffiliatePaymentReceipt(
+  supabase: SupabaseClient,
+  affiliateId: string,
+  file: File
+): Promise<string> {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `${affiliateId}/${crypto.randomUUID()}-${safeName}`;
+  const { error } = await supabase.storage
+    .from(PAYMENT_RECEIPTS_BUCKET)
+    .upload(path, file, { contentType: file.type || "application/octet-stream" });
+
+  if (error) throw error;
+  return path;
+}
+
+export async function getAffiliatePaymentReceiptUrl(
+  supabase: SupabaseClient,
+  path: string
+): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from(PAYMENT_RECEIPTS_BUCKET)
+    .createSignedUrl(path, 60 * 60);
+
+  if (error) throw error;
+  return data.signedUrl;
+}
+
 export const createAffiliatePayment = (
   supabase: SupabaseClient,
   payload: Partial<AffiliatePayment>

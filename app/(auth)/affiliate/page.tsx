@@ -24,6 +24,7 @@ import {
   createAffiliatePayment, deleteAffiliateDocument, getAffiliateDocuments,
   getAffiliatePayments, getAffiliateLeadership, getAffiliateStatusHistory,
   uploadAffiliateDocument, updateAffiliateDocument,
+  getAffiliatePaymentReceiptUrl, uploadAffiliatePaymentReceipt,
 } from '@/services/affiliate-service'
 import { getAllUsersWithRoles } from '@/services/auth-services'
 import { createHelpdeskCase, getHelpdeskCases } from '@/services/help-desk-service'
@@ -80,6 +81,7 @@ type DueRow = {
   fileName?: string
   fileType?: string
   fileDataUrl?: string
+  receiptPath?: string
 }
 
 type Project = {
@@ -439,20 +441,22 @@ export function AffiliateDashboardPage() {
         return
       }
 
-      const [{ data: affiliateRow, error: affiliateError }, loadedCases, loadedDocuments, loadedPayments, loadedLeadership, loadedStatusHistory, projectsResult, eventsResult] = await Promise.all([
-        supabase
-          .from('affiliates')
-          .select('*')
-          .eq('id', user?.affiliateId)
-          .single(),
-        getHelpdeskCases(supabase),
-        getAffiliateDocuments(supabase, user?.affiliateId),
-        getAffiliatePayments(supabase, user?.affiliateId),
-        getAffiliateLeadership(supabase, user?.affiliateId),
-        getAffiliateStatusHistory(supabase, user?.affiliateId),
-        supabase.from('projects').select('*').eq('affiliate_id', user?.affiliateId).order('created_at', { ascending: false }),
-        supabase.from('events').select('*').eq('affiliate_id', user?.affiliateId).order('event_date', { ascending: true }),
-      ])
+      const [{ data: affiliateRow, error: affiliateError },
+        loadedCases, loadedDocuments, loadedPayments, loadedLeadership,
+        loadedStatusHistory, projectsResult, eventsResult] = await Promise.all([
+          supabase
+            .from('affiliates')
+            .select('*')
+            .eq('id', user?.affiliateId)
+            .single(),
+          getHelpdeskCases(supabase),
+          getAffiliateDocuments(supabase, user?.affiliateId),
+          getAffiliatePayments(supabase, user?.affiliateId),
+          getAffiliateLeadership(supabase, user?.affiliateId),
+          getAffiliateStatusHistory(supabase, user?.affiliateId),
+          supabase.from('projects').select('*').eq('affiliate_id', user?.affiliateId).order('created_at', { ascending: false }),
+          supabase.from('events').select('*').eq('affiliate_id', user?.affiliateId).order('event_date', { ascending: true }),
+        ])
       if (affiliateError) throw affiliateError
       if (projectsResult.error) throw projectsResult.error
       if (eventsResult.error) throw eventsResult.error
@@ -483,10 +487,21 @@ export function AffiliateDashboardPage() {
       setMonthlyRate(affiliateRow.dues_rate ?? '')
       setLeadership(loadedLeadership.map((leader: any) => ({ position: leader.position, name: leader.name, email: leader.email, phone: leader.phone })))
       setStatusHistory(loadedStatusHistory)
-      setDueRows(loadedPayments.map((payment: any) => ({
-        id: payment.id, date: payment.payment_date ?? payment.recorded_at,
-        reference: payment.reference ?? '', amount: Number(payment.amount), status: 'Received',
-        fileName: payment.notes?.match(/Receipt: (.+)/)?.[1],
+      setDueRows(await Promise.all(loadedPayments.map(async (payment: any) => {
+        let fileDataUrl: string | undefined
+        if (payment.receipt_path) {
+          try {
+            fileDataUrl = await getAffiliatePaymentReceiptUrl(supabase, payment.receipt_path)
+          } catch (error) {
+            console.error('Unable to retrieve payment receipt URL:', error)
+          }
+        }
+        return {
+          id: payment.id, date: payment.payment_date ?? payment.recorded_at,
+          reference: payment.reference ?? '', amount: Number(payment.amount), status: payment.status ?? 'Received',
+          fileName: payment.notes?.match(/Receipt: (.+)/)?.[1],
+          fileDataUrl, receiptPath: payment.receipt_path ?? undefined,
+        }
       })))
       setDocuments(loadedDocuments.map((document: any) => ({
         id: document.id, name: document.name, type: document.category, caption: document.version ?? '',
@@ -690,19 +705,35 @@ export function AffiliateDashboardPage() {
     e.preventDefault()
     if (!canManage || !currentAffiliate) return
     setModalBusy(true)
+    let receiptPath: string | null = null
     try {
-      let fileName: string | undefined
-      if (dueFile) {
-        fileName = dueFile.name
-      }
       const supabase = getSupabaseBrowserClient()
       if (!supabase) throw new Error('Supabase is not configured.')
-      const payment = await createAffiliatePayment(supabase, {
-        affiliate_id: currentAffiliate.id, amount: Number(dueForm.amount) || 0,
-        payment_date: dueForm.date || null, reference: dueForm.reference || null,
-        notes: fileName ? `Receipt: ${fileName}` : null, recorded_by: user?.name,
-      } as any)
-      setDueRows((prev) => [{ id: payment.id, date: payment.payment_date ?? dueForm.date, reference: payment.reference ?? '', amount: Number(payment.amount), status: 'Received', fileName }, ...prev])
+      if (dueFile) receiptPath = await uploadAffiliatePaymentReceipt(supabase, currentAffiliate.id, dueFile)
+      let payment
+      try {
+        payment = await createAffiliatePayment(supabase, {
+          affiliate_id: currentAffiliate.id, amount: Number(dueForm.amount) || 0,
+          payment_date: dueForm.date || null, status: dueForm.status, reference: dueForm.reference || null,
+          receipt_path: receiptPath, notes: dueFile ? `Receipt: ${dueFile.name}` : null, recorded_by: user?.name,
+        } as any)
+      } catch (error) {
+        if (receiptPath) await supabase.storage.from('affiliate-payment-receipts').remove([receiptPath])
+        throw error
+      }
+      let fileDataUrl: string | undefined
+      if (receiptPath) {
+        try {
+          fileDataUrl = await getAffiliatePaymentReceiptUrl(supabase, receiptPath)
+        } catch (error) {
+          console.error('Payment was saved, but its receipt URL could not be retrieved:', error)
+        }
+      }
+      setDueRows((prev) => [{
+        id: payment.id, date: payment.payment_date ?? dueForm.date, reference: payment.reference ?? '',
+        amount: Number(payment.amount), status: payment.status ?? dueForm.status,
+        fileName: dueFile?.name, fileDataUrl, receiptPath: receiptPath ?? undefined,
+      }, ...prev])
       setDueForm({ date: '', reference: '', amount: '', status: 'Received' })
       setDueFile(null)
       setShowAddDue(false)
@@ -714,12 +745,37 @@ export function AffiliateDashboardPage() {
     }
   }
 
+  const openPaymentReceipt = async (row: DueRow) => {
+    if (!row.receiptPath) {
+      if (row.fileDataUrl) window.open(row.fileDataUrl, '_blank', 'noopener,noreferrer')
+      return
+    }
+    const receiptWindow = window.open('about:blank', '_blank')
+    if (receiptWindow) receiptWindow.opener = null
+    try {
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const url = await getAffiliatePaymentReceiptUrl(supabase, row.receiptPath)
+      setDueRows((previous) => previous.map((item) => item.id === row.id ? { ...item, fileDataUrl: url } : item))
+      if (receiptWindow) receiptWindow.location.href = url
+      else toast.error('Allow pop-ups to open the payment receipt.')
+    } catch (error) {
+      receiptWindow?.close()
+      toast.error(error instanceof Error ? error.message : 'Unable to retrieve receipt.')
+    }
+  }
+
   const addProgramme = (e: React.FormEvent) => {
     e.preventDefault()
     if (!canManage || !currentAffiliate) return
     const supabase = getSupabaseBrowserClient()
     if (!supabase) return
-    void supabase.from('projects').insert({ affiliate_id: currentAffiliate.id, title: programmeForm.title.trim(), status: programmeForm.status.toLowerCase().replaceAll(' ', '_'), progress: Math.min(100, Number(programmeForm.progress) || 0), coordinator: programmeForm.lead, archived: false }).select('*').single()
+    void supabase.from('projects').insert({ 
+      affiliate_id: currentAffiliate.id, 
+      title: programmeForm.title.trim(), 
+      status: programmeForm.status.toLowerCase().replaceAll(' ', '_'), 
+      progress: Math.min(100, Number(programmeForm.progress) || 0), 
+      coordinator: programmeForm.lead, archived: false }).select('*').single()
       .then(({ data, error }) => {
         if (error) { toast.error(error.message); return }
         setProjects(prev => [{ id: data.id, title: data.title, status: data.status.replaceAll('_', ' '), progress: data.progress, lead: data.coordinator, archived: data.archived }, ...prev])
@@ -1145,9 +1201,9 @@ export function AffiliateDashboardPage() {
                     </CardHeader>
                     <CardContent>
                       <div className="flex h-28 items-end justify-between gap-3 px-1">
-                        {duesChart.map((item) => (
+                        {duesChart.map((item, idx) => (
                           <div
-                            key={item.month}
+                            key={idx}
                             className="flex h-full flex-1 flex-col items-center justify-end gap-2"
                           >
                             <div
@@ -1399,19 +1455,18 @@ export function AffiliateDashboardPage() {
                           <td className="p-3 font-mono text-xs">{row.reference}</td>
                           <td className="p-3">{money(row.amount)}</td>
                           <td className="p-3">
-                            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{row.status}</Badge>
+                            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{row.status.charAt(0).toUpperCase() + row.status.slice(1)}</Badge>
                           </td>
                           <td className="p-3">
-                            {row.fileDataUrl ? (
-                              <a
-                                href={row.fileDataUrl}
-                                target="_blank"
-                                rel="noreferrer"
+                            {row.receiptPath || row.fileDataUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => void openPaymentReceipt(row)}
                                 className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline"
                               >
                                 <FileText className="h-3.5 w-3.5" />
-                                {row.fileName || 'View file'}
-                              </a>
+                                {row.fileName || 'View receipt'}
+                              </button>
                             ) : row.fileName ? (
                               <span className="text-muted-foreground">{row.fileName}</span>
                             ) : (

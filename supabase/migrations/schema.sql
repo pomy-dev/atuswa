@@ -84,7 +84,8 @@ create table if not exists public.affiliate_payments (
   id text primary key default gen_random_uuid()::text,
   affiliate_id text not null references public.affiliates(id) on delete cascade,
   amount numeric(14,2) not null check (amount >= 0), payment_date date, reference text, notes text,
-  recorded_by text, recorded_at timestamptz not null default now()
+  status text not null default 'Received' check (status in ('Received','Pending','Queried')),
+  receipt_path text, recorded_by text, recorded_at timestamptz not null default now()
 );
 create table if not exists public.affiliate_notifications (
   id text primary key default gen_random_uuid()::text,
