@@ -53,7 +53,12 @@ export default function EventDetailPage() {
     setWorking(true)
     try {
       const { createBulkEventInvitations } = await import('@/services/events-service')
-      await createBulkEventInvitations(supabase, { event_id: params.id, invitations: items.map(({ name, email, phone }) => ({ name, email, phone })) })
+      await createBulkEventInvitations(supabase,
+        {
+          event_id: params.id,
+          invitations: items.map(({ name, email, phone }) => (
+            { name, email, phone }))
+        }, event?.title!)
       await load()
       toast.success('Invitations saved.')
     } catch (error) { toast.error(error instanceof Error ? error.message : 'Could not save invitations.') }
