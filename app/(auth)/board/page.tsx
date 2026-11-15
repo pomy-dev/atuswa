@@ -96,6 +96,7 @@ import {
   WidthType,
   HeadingLevel,
 } from 'docx'
+import { Spinner } from '@/components/ui/spinner'
 
 const PAGE_SIZE = 10
 const EXCEL_PASSWORD = 'P@$$W0rd'
@@ -146,6 +147,7 @@ export default function UserManagementPage() {
   const [removing, setRemoving] = useState(false)
   const [sending, setSending] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -175,36 +177,43 @@ export default function UserManagementPage() {
     }
 
     const loadUsersAndActivityLogs = async () => {
-      const supabase = getSupabaseBrowserClient()
-      if (!supabase) throw new Error('Supabase is not configured.')
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession()
-      if (error) throw error
-      if (!session) return
+      try {
+        setIsLoading(true)
+        const supabase = getSupabaseBrowserClient()
+        if (!supabase) throw new Error('Supabase is not configured.')
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
+        if (error) throw error
+        if (!session) return
 
-      const loadedUsers = await getAllUsersWithRoles(supabase, session)
-      const usersList = loadedUsers ?? []
-      const loadedLogs = await getActivityLogs(supabase, session)
-      const usersById = new Map(usersList.map((loadedUser) => [loadedUser.id, loadedUser.full_name]))
+        const loadedUsers = await getAllUsersWithRoles(supabase, session)
+        const usersList = loadedUsers ?? []
+        const loadedLogs = await getActivityLogs(supabase, session)
+        const usersById = new Map(usersList.map((loadedUser) => [loadedUser.id, loadedUser.full_name]))
 
-      const logsWithUserNames = (loadedLogs ?? []).map(
-        (log: ActivityLogEntry & { user_id?: string }) => {
-          const logUserId = log.userId ?? log.user_id
-          return {
-            ...log,
-            user_name:
-              (logUserId && usersById.get(logUserId)) ??
-              log.user_name ??
-              'Unknown user',
+        const logsWithUserNames = (loadedLogs ?? []).map(
+          (log: ActivityLogEntry & { user_id?: string }) => {
+            const logUserId = log.userId ?? log.user_id
+            return {
+              ...log,
+              user_name:
+                (logUserId && usersById.get(logUserId)) ??
+                log.user_name ??
+                'Unknown user',
+            }
           }
-        }
-      )
+        )
 
-      if (!cancelled) {
-        setUsers(usersList)
-        setLogs(logsWithUserNames)
+        if (!cancelled) {
+          setUsers(usersList)
+          setLogs(logsWithUserNames)
+        }
+      } catch (error) {
+        toast.success(`Failed to load users: ${error}`)
+      } finally {
+        setIsLoading(false)
       }
     }
 
@@ -1134,7 +1143,16 @@ export default function UserManagementPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedUsers.length === 0 ? (
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={7}
+                        className="flex flex-wrap items-center justify-center h-24 text-center text-muted-foreground"
+                      >
+                        <Spinner className='h-4 w-4' />&nbsp;Loading...
+                      </TableCell>
+                    </TableRow>
+                  ) : (!isLoading && paginatedUsers.length === 0) ? (
                     <TableRow>
                       <TableCell
                         colSpan={7}
@@ -1467,7 +1485,7 @@ export default function UserManagementPage() {
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
               <Select
-                value={formData.roleId}
+                value={roles.find(r => r.id === formData.roleId)?.name}
                 onValueChange={(val) =>
                   setFormData((prev) => ({ ...prev, roleId: val ?? '' }))
                 }
@@ -1548,7 +1566,8 @@ export default function UserManagementPage() {
                 placeholder="e.g. Moderator"
                 disabled={
                   roleForm.name?.toLowerCase() === 'secretary general' ||
-                  roleForm.name?.toLowerCase() === 'branch admin'
+                  roleForm.name?.toLowerCase() === 'branch admin' ||
+                  roleForm.name?.toLowerCase() === 'affiliate secretary'
                 }
               />
             </div>

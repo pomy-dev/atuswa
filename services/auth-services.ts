@@ -167,6 +167,7 @@ export async function getAllUsersWithRoles(client: SupabaseClient, session: Sess
     email: user.email,
     phone: user.phone,
     role_id: user.role_id,
+    affiliate_id: user.affiliate_id,
     status: user.status,
     createdAt: user.created_at,
     lastLogin: user.last_login ?? undefined,
@@ -176,7 +177,6 @@ export async function getAllUsersWithRoles(client: SupabaseClient, session: Sess
       permissions: user.role?.permissions ?? [],
     } : undefined
   }));
-
   return users;
 }
 
@@ -212,13 +212,14 @@ export async function getUserById(client: SupabaseClient, session: Session | nul
 
 export async function updateUserAccount(client: SupabaseClient, session: Session | null, payload: {
   user_id: string
-  full_name: string
-  email: string
-  phone: string
-  role_id: string
+  full_name?: string
+  email?: string
+  phone?: string
+  role_id?: string
+  affiliate_id?: string
   branch_id?: string
   photo_url?: string | null
-  status: string
+  status?: string
 }) {
   if (!session?.user) return null
 
@@ -229,7 +230,7 @@ export async function updateUserAccount(client: SupabaseClient, session: Session
     }
   );
 
-  if (error) throw new Error(`Unable to update user account: ${error.message}`)
+  if (error) throw new Error(`Unable to update user account: ${error}`)
 
   return data.user;
 }

@@ -28,6 +28,8 @@ async function getUserProfile(userId: string) {
 async function getLandingRoute(role?: Role): Promise<string> {
   if (!role) return '/settings';
 
+  if (role.name.toLowerCase().replaceAll('_', ' ').trim() === 'affiliate secretary') return '/affiliate';
+
   const accesses = getRoleAccesses(role);
 
   for (const access of accesses) {

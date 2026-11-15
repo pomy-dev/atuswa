@@ -201,6 +201,33 @@ export const createAffiliateDocument = (
   payload: Partial<AffiliateDocument>
 ) => createRow<AffiliateDocument>(supabase, DOCUMENTS, payload);
 
+export async function uploadAffiliateDocument(
+  supabase: SupabaseClient,
+  affiliateId: string,
+  file: File
+): Promise<AffiliateDocument> {
+  const bucket = "affiliate-files";
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `${affiliateId}/${crypto.randomUUID()}-${safeName}`;
+  const { error: uploadError } = await supabase.storage
+    .from(bucket)
+    .upload(path, file, { contentType: file.type || "application/octet-stream" });
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  try {
+    return await createAffiliateDocument(supabase, {
+      affiliate_id: affiliateId,
+      name: file.name,
+      category: "Other",
+      url: data.publicUrl,
+    } as Partial<AffiliateDocument>);
+  } catch (error) {
+    await supabase.storage.from(bucket).remove([path]);
+    throw error;
+  }
+}
+
 export const getAffiliateDocuments = (
   supabase: SupabaseClient,
   affiliateId: string
@@ -219,10 +246,19 @@ export const updateAffiliateDocument = (
   payload: Partial<AffiliateDocument>
 ) => updateRow<AffiliateDocument>(supabase, DOCUMENTS, id, payload);
 
-export const deleteAffiliateDocument = (
+export async function deleteAffiliateDocument(
   supabase: SupabaseClient,
   id: string
-) => deleteRow(supabase, DOCUMENTS, id);
+) {
+  const document = await getAffiliateDocumentById(supabase, id);
+  const publicPrefix = '/storage/v1/object/public/affiliate-files/';
+  if (document.url?.includes(publicPrefix)) {
+    const path = decodeURIComponent(document.url.split(publicPrefix)[1].split('?')[0]);
+    const { error } = await supabase.storage.from('affiliate-files').remove([path]);
+    if (error) throw error;
+  }
+  await deleteRow(supabase, DOCUMENTS, id);
+}
 
 // =====================================================
 // 5. MEMBERS

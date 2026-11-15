@@ -6,6 +6,7 @@ export interface AppUser {
   phone?: string
   branchId?: string
   role_id: string
+  affiliateId?: string
   status: 'active' | 'inactive'
   createdAt: string
   lastLogin?: string

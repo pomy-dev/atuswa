@@ -1,11 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useMemo, useState, useRef, useEffect } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { createContext, useCallback, useContext, useMemo, useState, useRef, useEffect } from 'react'
 import {
   ArrowDownRight, ArrowUpRight, CalendarDays, Check, CheckCircle2, ChevronRight,
   CircleDollarSign, Clock3, FileText, FolderKanban, Headphones, Loader2, MapPin,
-  Pencil, Plus, Save, ShieldCheck, Users, X, Upload, Archive, Trash2, Download
+  Pencil, Plus, Save, ShieldCheck, Users, X, Upload, Archive, Trash2, Download,
+  ArrowLeftIcon
 } from 'lucide-react'
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
@@ -18,9 +20,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/lib/auth-context'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import {
+  createAffiliatePayment, deleteAffiliateDocument, getAffiliateDocuments,
+  getAffiliatePayments, getAffiliateLeadership, getAffiliateStatusHistory,
+  uploadAffiliateDocument, updateAffiliateDocument,
+} from '@/services/affiliate-service'
+import { getAllUsersWithRoles } from '@/services/auth-services'
 import { createHelpdeskCase, getHelpdeskCases } from '@/services/help-desk-service'
 import { FileCaseModal } from '@/components/modals/file-case-modal'
-import { HelpDeskCase } from '@/lib/types'
+import { HelpDeskCase, AppUser } from '@/lib/types'
 import { toast } from 'sonner'
 
 type AffiliateProfile = {
@@ -34,6 +42,19 @@ type AffiliateProfile = {
   email: string
   phone: string
   address: string
+}
+
+type AffiliateExtraDetails = {
+  registrationNumber: string
+  affiliationDate: string
+  foundingDate: string
+  postalAddress: string
+  website: string
+  socialMedia: string
+  correspondenceEmail: string
+  correspondencePhone: string
+  bankDetails: string
+  ageGroups: string
 }
 
 type MembershipData = {
@@ -93,6 +114,8 @@ type DocumentItem = {
 
 type SupportCase = { id: string; title: string; status: string; updated: string }
 
+const AffiliateCanManageContext = createContext(false)
+
 const initialAffiliate: AffiliateProfile = {
   name: 'Eswatini National Association of Teachers',
   acronym: 'SNAT',
@@ -119,13 +142,6 @@ const initialMembership: MembershipData = {
   lastCongress: '12 September 2025',
   constitutionVersion: '2023 revision',
 }
-
-const initialDuesChart = [
-  { month: 'Aug', amount: 108750 },
-  { month: 'Sep', amount: 108750 },
-  { month: 'Oct', amount: 108750 },
-  { month: 'Nov', amount: 108750 },
-]
 
 const initialDueRows: DueRow[] = [
   { id: 'du-1', date: '4 Nov 2026', reference: 'TUC-SNAT-26-104', amount: 108750, status: 'Received' },
@@ -196,13 +212,15 @@ function EditableField({
   label: string
   value: string
   onSave: (next: string) => void | Promise<void>
-  type?: 'text' | 'email' | 'tel' | 'number'
+  type?: 'text' | 'email' | 'tel' | 'number' | 'date'
   multiline?: boolean
   className?: string
   displayClassName?: string
   placeholder?: string
   readOnly?: boolean
 }) {
+  const canManage = useContext(AffiliateCanManageContext)
+  readOnly = readOnly || !canManage
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
   const [saving, setSaving] = useState(false)
@@ -223,6 +241,8 @@ function EditableField({
     try {
       await onSave(draft.trim())
       setEditing(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to save this change.')
     } finally {
       setSaving(false)
     }
@@ -324,16 +344,33 @@ function EditableNumberField({
   )
 }
 
-export default function AffiliateDashboardPage() {
-  const { user } = useAuth()
+export function AffiliateDashboardPage() {
+  const { user, logout } = useAuth()
+  const router = useRouter()
+  const params = useParams<{ id?: string }>()
+  const routeId = typeof params?.id === 'string' ? params.id : undefined
+
+  const normalizedRole = user?.role.toLowerCase().replaceAll('_', ' ').trim()
+  const isAffiliateSecretary = normalizedRole === 'affiliate secretary'
+  const isSecretaryGeneral = normalizedRole === 'secretary general'
+
+  const canManage = isAffiliateSecretary
+  let targetAffiliateId = isAffiliateSecretary ? user?.affiliateId : routeId
+
+  const [users, setUsers] = useState<AppUser[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [section, setSection] = useState('Overview')
   const [affiliate, setAffiliate] = useState(initialAffiliate)
+  const [extraDetails, setExtraDetails] = useState<AffiliateExtraDetails>({ registrationNumber: '', affiliationDate: '', foundingDate: '', postalAddress: '', website: '', socialMedia: '', correspondenceEmail: '', correspondencePhone: '', bankDetails: '', ageGroups: '' })
+  const [statusHistory, setStatusHistory] = useState<any[]>([])
   const [membership, setMembership] = useState(initialMembership)
   const [dueRows, setDueRows] = useState(initialDueRows)
   const [projects, setProjects] = useState(initialProjects)
   const [events, setEvents] = useState(initialEvents)
   const [documents, setDocuments] = useState(initialDocuments)
   const [cases, setCases] = useState(initialCases)
+  const [leadership, setLeadership] = useState<{ position: string; name: string; email?: string; phone?: string }[]>([])
+  const [isLoadingAffiliate, setIsLoadingAffiliate] = useState(true)
   const [currentAffiliate, setCurrentAffiliate] = useState<{ id: string; name: string } | null>(null)
   const [showFileCase, setShowFileCase] = useState(false)
   const [isFilingCase, setIsFilingCase] = useState(false)
@@ -365,34 +402,109 @@ export default function AffiliateDashboardPage() {
   useEffect(() => {
     if (!user) return
     let cancelled = false
+    setIsLoadingAffiliate(true)
+    setLoadError(null)
+
+    const loadAllSystemUsers = async () => {
+      try {
+        const supabase = getSupabaseBrowserClient()
+        if (!supabase) throw new Error('Supabase is not configured.')
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
+        if (error) throw error
+        if (!session) return
+
+        const loadedUsers = await getAllUsersWithRoles(supabase, session)
+
+        if (!cancelled) {
+          setUsers(loadedUsers!)
+        }
+      } catch (error) {
+        toast.success(`Failed to load users: ${error}`)
+      }
+    }
 
     const loadAffiliateSupportData = async () => {
       const supabase = getSupabaseBrowserClient()
       if (!supabase) throw new Error('Supabase is not configured.')
 
-      const affiliateId = user.affiliateId
-      if (!affiliateId) {
+      if (!user?.affiliateId) {
         if (!cancelled) {
           setCurrentAffiliate(null)
           setCases([])
+          setIsLoadingAffiliate(false)
         }
         return
       }
 
-      const [{ data: affiliateRow, error: affiliateError }, loadedCases] = await Promise.all([
+      const [{ data: affiliateRow, error: affiliateError }, loadedCases, loadedDocuments, loadedPayments, loadedLeadership, loadedStatusHistory, projectsResult, eventsResult] = await Promise.all([
         supabase
           .from('affiliates')
-          .select('id, official_name')
-          .eq('id', affiliateId)
+          .select('*')
+          .eq('id', user?.affiliateId)
           .single(),
         getHelpdeskCases(supabase),
+        getAffiliateDocuments(supabase, user?.affiliateId),
+        getAffiliatePayments(supabase, user?.affiliateId),
+        getAffiliateLeadership(supabase, user?.affiliateId),
+        getAffiliateStatusHistory(supabase, user?.affiliateId),
+        supabase.from('projects').select('*').eq('affiliate_id', user?.affiliateId).order('created_at', { ascending: false }),
+        supabase.from('events').select('*').eq('affiliate_id', user?.affiliateId).order('event_date', { ascending: true }),
       ])
       if (affiliateError) throw affiliateError
+      if (projectsResult.error) throw projectsResult.error
+      if (eventsResult.error) throw eventsResult.error
       if (cancelled) return
+
+      const contact = affiliateRow.correspondence_contact ?? {}
+      setAffiliate({
+        name: affiliateRow.official_name, acronym: affiliateRow.acronym, affiliateCode: affiliateRow.affiliate_id,
+        status: affiliateRow.status, standing: affiliateRow.financial_standing,
+        updated: affiliateRow.updated_at ? new Date(affiliateRow.updated_at).toLocaleDateString() : '—',
+        contact: contact.name ?? '', email: affiliateRow.email ?? '',
+        phone: (affiliateRow.phone_numbers ?? []).join(', '), address: affiliateRow.physical_address ?? '',
+      })
+      setExtraDetails({
+        registrationNumber: affiliateRow.registration_number ?? '', affiliationDate: affiliateRow.affiliation_date ?? '',
+        foundingDate: affiliateRow.founding_date ?? '', postalAddress: affiliateRow.postal_address ?? '',
+        website: affiliateRow.website ?? '', socialMedia: affiliateRow.social_media ?? '',
+        correspondenceEmail: contact.email ?? '', correspondencePhone: contact.phone ?? '', bankDetails: affiliateRow.bank_details ?? '', ageGroups: affiliateRow.age_groups ?? '',
+      })
+      const breakdown = affiliateRow.gender_breakdown ?? {}
+      setMembership({
+        declared: affiliateRow.declared_membership ?? 0, paid: affiliateRow.paid_up_membership ?? 0,
+        women: breakdown.female ?? 0, men: breakdown.male ?? 0, other: breakdown.other ?? 0,
+        stewards: affiliateRow.shop_stewards ?? 0, executiveCommittee: affiliateRow.executive_committee_size ?? 0,
+        regions: (affiliateRow.regions ?? []).join(', '), sectors: (affiliateRow.sectors ?? []).join(', '),
+        lastCongress: affiliateRow.last_congress_date ?? '', constitutionVersion: affiliateRow.constitution_version ?? '',
+      })
+      setMonthlyRate(affiliateRow.dues_rate ?? '')
+      setLeadership(loadedLeadership.map((leader: any) => ({ position: leader.position, name: leader.name, email: leader.email, phone: leader.phone })))
+      setStatusHistory(loadedStatusHistory)
+      setDueRows(loadedPayments.map((payment: any) => ({
+        id: payment.id, date: payment.payment_date ?? payment.recorded_at,
+        reference: payment.reference ?? '', amount: Number(payment.amount), status: 'Received',
+        fileName: payment.notes?.match(/Receipt: (.+)/)?.[1],
+      })))
+      setDocuments(loadedDocuments.map((document: any) => ({
+        id: document.id, name: document.name, type: document.category, caption: document.version ?? '',
+        date: document.uploaded_at, fileName: document.name, fileType: '', fileDataUrl: document.url,
+        archived: Boolean(document.archived_at),
+      })))
+      setProjects((projectsResult.data ?? []).map((project: any) => ({
+        id: project.id, title: project.title, status: project.status.replaceAll('_', ' '),
+        progress: Number(project.progress ?? 0), lead: project.coordinator ?? '', archived: Boolean(project.archived),
+      })))
+      setEvents((eventsResult.data ?? []).map((event: any) => ({
+        id: event.id, date: String(event.event_date).slice(0, 10), title: event.title, place: event.location,
+        kind: event.event_kind ?? 'Event', archived: Boolean(event.archived),
+      })))
 
       setCurrentAffiliate({ id: affiliateRow.id, name: affiliateRow.official_name })
       setCases(loadedCases
-        .filter((item) => item.affiliate_id === affiliateId)
+        .filter((item) => item.affiliate_id === user?.affiliateId)
         .map((item) => ({
           id: item.id,
           title: item.title,
@@ -403,14 +515,23 @@ export default function AffiliateDashboardPage() {
 
     void loadAffiliateSupportData().catch((error: unknown) => {
       console.error('Unable to load affiliate support cases:', error)
-      if (!cancelled) toast.error(error instanceof Error ? error.message : 'Unable to load support cases.')
+      if (!cancelled) {
+        const message = error instanceof Error ? error.message : 'Unable to load affiliate details.'
+        setLoadError(message)
+        toast.error(message)
+      }
+    }).finally(() => { if (!cancelled) setIsLoadingAffiliate(false) })
+
+    void loadAllSystemUsers().catch((error: unknown) => {
+      console.error('Unable to load users:', error)
     })
-
+    console.log(user)
     return () => { cancelled = true }
-  }, [user])
+  }, [user, targetAffiliateId])
 
-  const sections = ['Overview', 'Membership', 'Dues & finance', 'Programmes', 'Documents', 'Support']
-  const maxDues = Math.max(...initialDuesChart.map((item) => item.amount))
+  const sections = ['Overview', 'About', 'Membership', 'Dues & finance', 'Programmes', 'Documents', 'Support']
+  const duesChart = dueRows.slice(0, 4).reverse().map(row => ({ month: new Date(row.date).toLocaleDateString('en', { month: 'short' }), amount: row.amount }))
+  const maxDues = Math.max(1, ...duesChart.map((item) => item.amount))
   const paidUpPct = membership.declared
     ? Math.round((membership.paid / membership.declared) * 100)
     : 0
@@ -429,20 +550,84 @@ export default function AffiliateDashboardPage() {
   }, [])
 
   const updateAffiliate = useCallback(
-    <K extends keyof AffiliateProfile>(key: K, value: AffiliateProfile[K]) => {
+    async <K extends keyof AffiliateProfile,>(key: K, value: AffiliateProfile[K]) => {
+      if (!canManage || !currentAffiliate) return
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (key === 'name') patch.official_name = value
+      if (key === 'acronym') patch.acronym = value
+      if (key === 'status') patch.status = value
+      if (key === 'standing') patch.financial_standing = value
+      if (key === 'email') patch.email = value || null
+      if (key === 'phone') patch.phone_numbers = String(value).split(',').map(item => item.trim()).filter(Boolean)
+      if (key === 'address') patch.physical_address = value
+      if (key === 'contact') {
+        const { data } = await supabase.from('affiliates').select('correspondence_contact').eq('id', currentAffiliate.id).single()
+        patch.correspondence_contact = { ...(data?.correspondence_contact ?? {}), name: value }
+      }
+      const { error } = await supabase.from('affiliates').update(patch).eq('id', currentAffiliate.id)
+      if (error) throw error
+      if (key === 'status') {
+        const { error: historyError } = await supabase.from('affiliate_status_history').insert({ affiliate_id: currentAffiliate.id, status: value, reason: 'Updated by affiliate secretary', changed_by: user?.name })
+        if (historyError) throw historyError
+        const { data: history } = await supabase.from('affiliate_status_history').select('*').eq('affiliate_id', currentAffiliate.id).order('changed_at', { ascending: false })
+        setStatusHistory(history ?? [])
+      }
       setAffiliate((prev) => ({ ...prev, [key]: value }))
       touchUpdated()
     },
-    [touchUpdated],
+    [canManage, currentAffiliate, touchUpdated],
   )
 
   const updateMembership = useCallback(
-    <K extends keyof MembershipData>(key: K, value: MembershipData[K]) => {
+    async <K extends keyof MembershipData,>(key: K, value: MembershipData[K]) => {
+      if (!canManage || !currentAffiliate) return
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const fields: Partial<Record<keyof MembershipData, string>> = {
+        declared: 'declared_membership', paid: 'paid_up_membership', stewards: 'shop_stewards',
+        executiveCommittee: 'executive_committee_size', lastCongress: 'last_congress_date',
+        constitutionVersion: 'constitution_version',
+      }
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (fields[key]) patch[fields[key]!] = value
+      if (key === 'women' || key === 'men' || key === 'other') {
+        const { data, error } = await supabase.from('affiliates').select('gender_breakdown').eq('id', currentAffiliate.id).single()
+        if (error) throw error
+        const genderKey = key === 'women' ? 'female' : key === 'men' ? 'male' : 'other'
+        patch.gender_breakdown = { ...(data.gender_breakdown ?? {}), [genderKey]: value }
+      }
+      if (key === 'regions' || key === 'sectors') patch[key] = String(value).split(',').map(item => item.trim()).filter(Boolean)
+      const { error } = await supabase.from('affiliates').update(patch).eq('id', currentAffiliate.id)
+      if (error) throw error
       setMembership((prev) => ({ ...prev, [key]: value }))
       touchUpdated()
     },
-    [touchUpdated],
+    [canManage, currentAffiliate, touchUpdated],
   )
+
+  const updateExtraDetail = async (key: keyof AffiliateExtraDetails, value: string) => {
+    if (!canManage || !currentAffiliate) return
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const columns: Partial<Record<keyof AffiliateExtraDetails, string>> = {
+      registrationNumber: 'registration_number', affiliationDate: 'affiliation_date',
+      foundingDate: 'founding_date', postalAddress: 'postal_address', website: 'website',
+      socialMedia: 'social_media', bankDetails: 'bank_details', ageGroups: 'age_groups',
+    }
+    let patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (columns[key]) patch[columns[key]!] = value || null
+    if (key === 'correspondenceEmail' || key === 'correspondencePhone') {
+      const { data, error } = await supabase.from('affiliates').select('correspondence_contact').eq('id', currentAffiliate.id).single()
+      if (error) throw error
+      patch.correspondence_contact = { ...(data.correspondence_contact ?? {}), [key === 'correspondenceEmail' ? 'email' : 'phone']: value }
+    }
+    const { error } = await supabase.from('affiliates').update(patch).eq('id', currentAffiliate.id)
+    if (error) throw error
+    setExtraDetails(previous => ({ ...previous, [key]: value }))
+    touchUpdated()
+  }
 
   useEffect(() => {
     if (!dueFile || !dueFile.type.startsWith('image/')) {
@@ -465,17 +650,24 @@ export default function AffiliateDashboardPage() {
   }, [docFile])
 
   const updateProjectField = (index: number, key: keyof Project, value: string | number) => {
-    setProjects((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, [key]: value } : item)),
-    )
-    touchUpdated()
+    if (!canManage) return
+    const project = projects[index]
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase || !project) return
+    const column = key === 'title' ? 'title' : key === 'status' ? 'status' : key === 'lead' ? 'coordinator' : key
+    const savedValue = key === 'status' ? String(value).toLowerCase().replaceAll(' ', '_') : value
+    void supabase.from('projects').update({ [column]: savedValue, updated_at: new Date().toISOString() }).eq('id', project.id)
+      .then(({ error }) => { if (error) toast.error(error.message); else { setProjects(prev => prev.map((item, i) => i === index ? { ...item, [key]: value } : item)); touchUpdated() } })
   }
 
   const updateEventField = (index: number, key: keyof EventItem, value: string) => {
-    setEvents((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, [key]: value } : item)),
-    )
-    touchUpdated()
+    if (!canManage) return
+    const event = events[index]
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase || !event) return
+    const column = key === 'date' ? 'event_date' : key === 'place' ? 'location' : key === 'kind' ? 'event_kind' : key
+    void supabase.from('events').update({ [column]: value, updated_at: new Date().toISOString() }).eq('id', event.id)
+      .then(({ error }) => { if (error) toast.error(error.message); else { setEvents(prev => prev.map((item, i) => i === index ? { ...item, [key]: value } : item)); touchUpdated() } })
   }
 
   const updateDocumentField = (index: number, key: keyof DocumentItem, value: string) => {
@@ -496,33 +688,27 @@ export default function AffiliateDashboardPage() {
 
   const addDue = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!canManage || !currentAffiliate) return
     setModalBusy(true)
     try {
       let fileName: string | undefined
-      let fileType: string | undefined
-      let fileDataUrl: string | undefined
       if (dueFile) {
         fileName = dueFile.name
-        fileType = dueFile.type
-        if (dueFile.size <= 1.5 * 1024 * 1024) fileDataUrl = await readFileAsDataUrl(dueFile)
       }
-      setDueRows((prev) => [
-        {
-          id: `due_${Date.now()}`,
-          date: dueForm.date,
-          reference: dueForm.reference,
-          amount: Number(dueForm.amount) || 0,
-          status: dueForm.status,
-          fileName,
-          fileType,
-          fileDataUrl,
-        },
-        ...prev,
-      ])
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const payment = await createAffiliatePayment(supabase, {
+        affiliate_id: currentAffiliate.id, amount: Number(dueForm.amount) || 0,
+        payment_date: dueForm.date || null, reference: dueForm.reference || null,
+        notes: fileName ? `Receipt: ${fileName}` : null, recorded_by: user?.name,
+      } as any)
+      setDueRows((prev) => [{ id: payment.id, date: payment.payment_date ?? dueForm.date, reference: payment.reference ?? '', amount: Number(payment.amount), status: 'Received', fileName }, ...prev])
       setDueForm({ date: '', reference: '', amount: '', status: 'Received' })
       setDueFile(null)
       setShowAddDue(false)
       touchUpdated()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to record payment.')
     } finally {
       setModalBusy(false)
     }
@@ -530,63 +716,62 @@ export default function AffiliateDashboardPage() {
 
   const addProgramme = (e: React.FormEvent) => {
     e.preventDefault()
-    setProjects((prev) => [
-      {
-        id: `proj_${Date.now()}`,
-        title: programmeForm.title,
-        status: programmeForm.status,
-        progress: Math.min(100, Number(programmeForm.progress) || 0),
-        lead: programmeForm.lead,
-        archived: false,
-      },
-      ...prev,
-    ])
-    setProgrammeForm({ title: '', status: 'Planning', progress: '0', lead: '' })
-    setShowAddProgramme(false)
-    touchUpdated()
+    if (!canManage || !currentAffiliate) return
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase) return
+    void supabase.from('projects').insert({ affiliate_id: currentAffiliate.id, title: programmeForm.title.trim(), status: programmeForm.status.toLowerCase().replaceAll(' ', '_'), progress: Math.min(100, Number(programmeForm.progress) || 0), coordinator: programmeForm.lead, archived: false }).select('*').single()
+      .then(({ data, error }) => {
+        if (error) { toast.error(error.message); return }
+        setProjects(prev => [{ id: data.id, title: data.title, status: data.status.replaceAll('_', ' '), progress: data.progress, lead: data.coordinator, archived: data.archived }, ...prev])
+        setProgrammeForm({ title: '', status: 'Planning', progress: '0', lead: '' }); setShowAddProgramme(false); touchUpdated()
+      })
   }
 
   const addEvent = (e: React.FormEvent) => {
     e.preventDefault()
-    setEvents((prev) => [
-      {
-        id: `evt_${Date.now()}`,
-        ...eventForm,
-        archived: false,
-      },
-      ...prev,
-    ])
-    setEventForm({ title: '', date: '', place: '', kind: 'Meeting' })
-    setShowAddEvent(false)
-    touchUpdated()
+    if (!canManage || !currentAffiliate) return
+    const supabase = getSupabaseBrowserClient()
+    if (!supabase) return
+    void supabase.from('events').insert({ affiliate_id: currentAffiliate.id, title: eventForm.title.trim(), event_date: eventForm.date, location: eventForm.place, event_kind: eventForm.kind, archived: false }).select('*').single()
+      .then(({ data, error }) => {
+        if (error) { toast.error(error.message); return }
+        setEvents(prev => [{ id: data.id, title: data.title, date: String(data.event_date).slice(0, 10), place: data.location, kind: data.event_kind, archived: data.archived }, ...prev])
+        setEventForm({ title: '', date: '', place: '', kind: 'Meeting' }); setShowAddEvent(false); touchUpdated()
+      })
   }
 
   const archiveProject = (id: string) => {
-    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, archived: true } : p)))
-    touchUpdated()
+    if (!canManage) return
+    const supabase = getSupabaseBrowserClient(); if (!supabase) return
+    void supabase.from('projects').update({ archived: true }).eq('id', id).then(({ error }) => { if (error) toast.error(error.message); else { setProjects(prev => prev.map(p => p.id === id ? { ...p, archived: true } : p)); touchUpdated() } })
   }
   const restoreProject = (id: string) => {
-    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, archived: false } : p)))
-    touchUpdated()
+    if (!canManage) return
+    const supabase = getSupabaseBrowserClient(); if (!supabase) return
+    void supabase.from('projects').update({ archived: false }).eq('id', id).then(({ error }) => { if (error) toast.error(error.message); else { setProjects(prev => prev.map(p => p.id === id ? { ...p, archived: false } : p)); touchUpdated() } })
   }
   const deleteProject = (id: string) => {
     if (!window.confirm('Permanently delete this programme?')) return
-    setProjects((prev) => prev.filter((p) => p.id !== id))
-    touchUpdated()
+    if (!canManage) return
+    const supabase = getSupabaseBrowserClient(); if (!supabase) return
+    void supabase.from('projects').delete().eq('id', id).then(({ error }) => { if (error) toast.error(error.message); else { setProjects(prev => prev.filter(p => p.id !== id)); touchUpdated() } })
   }
 
   const archiveEvent = (id: string) => {
-    setEvents((prev) => prev.map((ev) => (ev.id === id ? { ...ev, archived: true } : ev)))
-    touchUpdated()
+    if (!canManage) return
+    const supabase = getSupabaseBrowserClient(); if (!supabase) return
+    void supabase.from('events').update({ archived: true }).eq('id', id).then(({ error }) => { if (error) toast.error(error.message); else { setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, archived: true } : ev)); touchUpdated() } })
   }
   const restoreEvent = (id: string) => {
-    setEvents((prev) => prev.map((ev) => (ev.id === id ? { ...ev, archived: false } : ev)))
-    touchUpdated()
+    if (!canManage) return
+    const supabase = getSupabaseBrowserClient(); if (!supabase) return
+    void supabase.from('events').update({ archived: false }).eq('id', id).then(({ error }) => { if (error) toast.error(error.message); else { setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, archived: false } : ev)); touchUpdated() } })
   }
   const deleteEvent = (id: string) => {
     if (!window.confirm('Permanently delete this event?')) return
-    setEvents((prev) => prev.filter((ev) => ev.id !== id))
-    touchUpdated()
+    if (!canManage) return
+    const supabase = getSupabaseBrowserClient(); if (!supabase) return
+    void supabase.from('events').delete().eq('id', id).then(({ error }) => { if (error) toast.error(error.message); else { setEvents(prev => prev.filter(ev => ev.id !== id)); touchUpdated() } })
   }
 
   const uploadDocument = async (e: React.FormEvent) => {
@@ -597,27 +782,19 @@ export default function AffiliateDashboardPage() {
     }
     setModalBusy(true)
     try {
-      let fileDataUrl: string | undefined
-      if (docFile.size <= 1.5 * 1024 * 1024) fileDataUrl = await readFileAsDataUrl(docFile)
-      const today = new Date().toISOString().slice(0, 10)
-      setDocuments((prev) => [
-        {
-          id: `doc_${Date.now()}`,
-          name: docForm.name || docFile.name,
-          type: docForm.type,
-          caption: docForm.caption,
-          date: today,
-          fileName: docFile.name,
-          fileType: docFile.type,
-          fileDataUrl,
-          archived: false,
-        },
-        ...prev,
-      ])
+      if (!canManage || !currentAffiliate) return
+      const supabase = getSupabaseBrowserClient()
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const document = await uploadAffiliateDocument(supabase, currentAffiliate.id, docFile)
+      const { error: documentUpdateError } = await supabase.from('affiliate_documents').update({ name: docForm.name || docFile.name, category: docForm.type, version: docForm.caption || null }).eq('id', document.id)
+      if (documentUpdateError) throw documentUpdateError
+      setDocuments((prev) => [{ id: document.id, name: docForm.name || docFile.name, type: docForm.type, caption: docForm.caption, date: document.uploaded_at?.toString() ?? new Date().toISOString(), fileName: docFile.name, fileType: docFile.type, fileDataUrl: document.url, archived: false }, ...prev])
       setDocForm({ name: '', type: 'Other', caption: '' })
       setDocFile(null)
       setShowUploadDoc(false)
       touchUpdated()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to upload document.')
     } finally {
       setModalBusy(false)
     }
@@ -661,18 +838,25 @@ export default function AffiliateDashboardPage() {
   }
 
   const archiveDocument = (id: string) => {
-    setDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, archived: true } : d)))
-    touchUpdated()
+    if (!canManage) return
+    const supabase = getSupabaseBrowserClient(); if (!supabase) return
+    void updateAffiliateDocument(supabase, id, { archived_at: new Date().toISOString(), archived_by: user?.name } as any)
+      .then(() => { setDocuments(prev => prev.map(d => d.id === id ? { ...d, archived: true } : d)); touchUpdated() })
+      .catch((error: unknown) => toast.error(error instanceof Error ? error.message : 'Unable to archive document.'))
   }
   const restoreDocument = (id: string) => {
-    setDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, archived: false } : d)))
-    touchUpdated()
+    if (!canManage) return
+    const supabase = getSupabaseBrowserClient(); if (!supabase) return
+    void updateAffiliateDocument(supabase, id, { archived_at: null, archived_by: null } as any)
+      .then(() => { setDocuments(prev => prev.map(d => d.id === id ? { ...d, archived: false } : d)); touchUpdated() })
+      .catch((error: unknown) => toast.error(error instanceof Error ? error.message : 'Unable to restore document.'))
   }
   const removeDocument = (id: string) => {
     if (!window.confirm('Remove this document from your workspace?')) return
-    setDocuments((prev) => prev.filter((d) => d.id !== id))
-    setPreviewDoc((cur) => (cur?.id === id ? null : cur))
-    touchUpdated()
+    if (!canManage) return
+    void deleteAffiliateDocument(getSupabaseBrowserClient()!, id)
+      .then(() => { setDocuments(prev => prev.filter(d => d.id !== id)); setPreviewDoc(cur => cur?.id === id ? null : cur); touchUpdated() })
+      .catch((error: unknown) => toast.error(error instanceof Error ? error.message : 'Unable to remove document.'))
   }
   const shareDocument = async (doc: DocumentItem) => {
     const text = `${doc.name}${doc.caption ? ` — ${doc.caption}` : ''} (${doc.type}, ${doc.date})`
@@ -684,991 +868,1107 @@ export default function AffiliateDashboardPage() {
     }
   }
 
+  const downloadDocument = async (doc: DocumentItem) => {
+    try {
+      const publicMarker = '/storage/v1/object/public/affiliate-documents/'
+      const markerIndex = doc.fileDataUrl?.indexOf(publicMarker) ?? -1
+      if (markerIndex >= 0) {
+        const path = decodeURIComponent(doc.fileDataUrl!.slice(markerIndex + publicMarker.length).split('?')[0])
+        const supabase = getSupabaseBrowserClient()
+        if (!supabase) throw new Error('Supabase is not configured.')
+        const { data, error } = await supabase.storage.from('affiliate-documents').download(path)
+        if (error) throw error
+        const url = URL.createObjectURL(data)
+        const anchor = document.createElement('a')
+        anchor.href = url; anchor.download = doc.fileName || doc.name; anchor.click()
+        URL.revokeObjectURL(url)
+      } else if (doc.fileDataUrl) {
+        const anchor = document.createElement('a')
+        anchor.href = doc.fileDataUrl; anchor.download = doc.fileName || doc.name; anchor.click()
+      }
+    } catch (error) {
+      if (doc.fileDataUrl) window.open(doc.fileDataUrl, '_blank', 'noopener,noreferrer')
+      else toast.error(error instanceof Error ? error.message : 'Unable to download document.')
+    }
+  }
+
+  const exportAffiliateReport = () => {
+    const report = [
+      `TUCOSWA affiliate report: ${affiliate.name} (${affiliate.acronym})`,
+      `Affiliate ID: ${affiliate.affiliateCode}`, `Status: ${affiliate.status}`,
+      `Financial standing: ${affiliate.standing}`, `Email: ${affiliate.email || 'Not recorded'}`,
+      `Phone: ${affiliate.phone || 'Not recorded'}`, `Address: ${affiliate.address || 'Not recorded'}`,
+      `Registration number: ${extraDetails.registrationNumber || 'Not recorded'}`,
+      `Affiliation date: ${extraDetails.affiliationDate || 'Not recorded'}`,
+      `Founding date: ${extraDetails.foundingDate || 'Not recorded'}`,
+      `Declared membership: ${membership.declared}`, `Paid-up membership: ${membership.paid}`,
+      `Women / men / other: ${membership.women} / ${membership.men} / ${membership.other}`,
+      `Shop stewards: ${membership.stewards}`, `Regions: ${membership.regions || 'Not recorded'}`,
+      `Sectors: ${membership.sectors || 'Not recorded'}`, `Documents: ${documents.length}`,
+      `Leadership: ${leadership.map(person => `${person.position}: ${person.name}`).join('; ') || 'Not recorded'}`,
+      `Payments recorded: ${dueRows.length}`, `Generated: ${new Date().toLocaleString()}`,
+    ].join('\n')
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(new Blob([report], { type: 'text/plain' }))
+    link.download = `${affiliate.acronym.toLowerCase()}-affiliate-report.txt`
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
+
+  if (!user || (!isAffiliateSecretary && !isSecretaryGeneral)) {
+    return <div className="p-8"><Card><CardContent className="pt-6">You do not have access to affiliate records.</CardContent></Card></div>
+  }
+
+  if (isAffiliateSecretary && !user.affiliateId) {
+    return (
+      <div className="min-h-screen bg-muted/20 p-6">
+        <div className="mx-auto max-w-xl">
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={async () => { await logout(); router.replace('/login') }}>Log out</Button>
+          </div>
+          <Card className="mt-6">
+            <CardContent className="pt-6">Your account is not linked to an affiliate. Contact TUCOSWA Administration to finish account setup.</CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  if (!targetAffiliateId) return <div className="p-8"><Card><CardContent className="pt-6">Select an affiliate from the affiliate register to view its profile.</CardContent></Card></div>
+  if (isLoadingAffiliate) return <div className="min-h-screen p-8 text-sm text-muted-foreground">Loading affiliate record…</div>
+  if (loadError || !currentAffiliate) return <div className="p-8"><Card><CardContent className="pt-6 text-destructive">{loadError ?? 'Affiliate record not found.'}</CardContent></Card></div>
+
   return (
-    <div className="min-h-full bg-muted/20 p-4 md:p-7">
-      <div className="mx-auto max-w-7xl space-y-6">
-        {savingBanner && (
-          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            {savingBanner}
-          </div>
-        )}
+    <AffiliateCanManageContext.Provider value={canManage}>
+      <div>
+        {isAffiliateSecretary &&
+          <div className="flex items-center justify-between border-b bg-background px-5 py-3">
+            <div>
+              <p className="font-semibold">TUCOSWA Affiliate Workspace</p>
+              <p className="text-xs text-muted-foreground">Signed in as {user.name}</p>
+            </div><Button variant="outline" onClick={async () => { await logout(); router.replace('/login') }}>Log out</Button></div>}
+        {loadError && <div className="mx-auto max-w-7xl px-6 pt-5"><p role="alert" className="text-sm text-destructive">{loadError}</p></div>}
 
-        {/* Hero — profile fields editable */}
-        <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-white shadow-sm">
-          <div className="grid gap-6 p-6 md:grid-cols-[1fr_auto] md:p-8">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm text-emerald-100">
-                <ShieldCheck className="h-4 w-4" />
-                Affiliate workspace
-                <span className="text-white/40">·</span>
-                <span className="font-mono text-xs text-white/80">{affiliate.affiliateCode}</span>
+        <div className="mx-auto flex max-w-7xl justify-between gap-2 px-4 pt-4 md:px-7">
+          {isSecretaryGeneral && <Link href='/members' className='flex flex-wrap underline'><ArrowLeftIcon />&nbsp;Back</Link>}
+          <Button type="button" variant="outline" onClick={exportAffiliateReport}><Download className="mr-2 h-4 w-4" />Download report</Button>
+        </div>
+
+        <div className="min-h-full bg-muted/20 p-4 md:p-7">
+          <div className="mx-auto max-w-7xl space-y-6">
+            {savingBanner && (
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                {savingBanner}
               </div>
+            )}
 
-              <EditableField
-                label="Official name"
-                value={affiliate.name}
-                onSave={(v) => updateAffiliate('name', v)}
-                className="border-white/15 bg-white/[0.06] text-white"
-                displayClassName="text-xl font-semibold tracking-tight md:text-2xl text-white"
-              />
+            {/* Hero — profile fields editable */}
+            <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-white shadow-sm">
+              <div className="grid gap-6 p-6 md:grid-cols-[1fr_auto] md:p-8">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-sm text-emerald-100">
+                    <ShieldCheck className="h-4 w-4" />
+                    Affiliate workspace
+                    <span className="text-white/40">·</span>
+                    <span className="font-mono text-xs text-white/80">{affiliate.affiliateCode}</span>
+                  </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <EditableField
-                  label="Acronym"
-                  value={affiliate.acronym}
-                  onSave={(v) => updateAffiliate('acronym', v)}
-                  className="border-white/15 bg-white/[0.06]"
-                  displayClassName="text-white"
-                />
-                <EditableField
-                  label="Status"
-                  value={affiliate.status}
-                  onSave={(v) => updateAffiliate('status', v)}
-                  className="border-white/15 bg-white/[0.06]"
-                  displayClassName="text-white"
-                />
+                  <EditableField
+                    label="Official name"
+                    value={affiliate.name}
+                    onSave={(v) => updateAffiliate('name', v)}
+                    className="border-white/15 bg-white/[0.06] text-white"
+                    displayClassName="text-xl font-semibold tracking-tight md:text-2xl text-white"
+                  />
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <EditableField
+                      label="Acronym"
+                      value={affiliate.acronym}
+                      onSave={(v) => updateAffiliate('acronym', v)}
+                      className="border-white/15 bg-white/[0.06]"
+                      displayClassName="text-white"
+                    />
+                    <EditableField
+                      label="Status"
+                      value={affiliate.status}
+                      onSave={(v) => updateAffiliate('status', v)}
+                      className="border-white/15 bg-white/[0.06]"
+                      displayClassName="text-white"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className="border-emerald-300/30 bg-emerald-300/15 text-emerald-100 hover:bg-emerald-300/15">
+                      <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                      {affiliate.status}
+                    </Badge>
+                    <Badge className="border-white/20 bg-white/10 text-white hover:bg-white/10">
+                      {affiliate.standing}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-white/15 bg-white/[0.06] p-4 md:min-w-72">
+                  <p className="text-xs uppercase tracking-wide text-white/55">Affiliation contact</p>
+                  <EditableField
+                    label="Primary contact"
+                    value={affiliate.contact}
+                    onSave={(v) => updateAffiliate('contact', v)}
+                    className="border-white/10 bg-transparent p-0 shadow-none"
+                    displayClassName="text-white"
+                  />
+                  <EditableField
+                    label="Email"
+                    value={affiliate.email}
+                    type="email"
+                    onSave={(v) => updateAffiliate('email', v)}
+                    className="border-white/10 bg-transparent p-0 shadow-none"
+                    displayClassName="text-white/90"
+                  />
+                  <EditableField
+                    label="Phone"
+                    value={affiliate.phone}
+                    type="tel"
+                    onSave={(v) => updateAffiliate('phone', v)}
+                    className="border-white/10 bg-transparent p-0 shadow-none"
+                    displayClassName="text-white/90"
+                  />
+                  <EditableField
+                    label="Address"
+                    value={affiliate.address}
+                    onSave={(v) => updateAffiliate('address', v)}
+                    className="border-white/10 bg-transparent p-0 shadow-none"
+                    displayClassName="text-white/90"
+                  />
+                </div>
               </div>
+            </section>
 
-              <div className="flex flex-wrap gap-2">
-                <Badge className="border-emerald-300/30 bg-emerald-300/15 text-emerald-100 hover:bg-emerald-300/15">
-                  <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                  {affiliate.status}
-                </Badge>
-                <Badge className="border-white/20 bg-white/10 text-white hover:bg-white/10">
-                  {affiliate.standing}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-white/15 bg-white/[0.06] p-4 md:min-w-72">
-              <p className="text-xs uppercase tracking-wide text-white/55">Affiliation contact</p>
-              <EditableField
-                label="Primary contact"
-                value={affiliate.contact}
-                onSave={(v) => updateAffiliate('contact', v)}
-                className="border-white/10 bg-transparent p-0 shadow-none"
-                displayClassName="text-white"
-              />
-              <EditableField
-                label="Email"
-                value={affiliate.email}
-                type="email"
-                onSave={(v) => updateAffiliate('email', v)}
-                className="border-white/10 bg-transparent p-0 shadow-none"
-                displayClassName="text-white/90"
-              />
-              <EditableField
-                label="Phone"
-                value={affiliate.phone}
-                type="tel"
-                onSave={(v) => updateAffiliate('phone', v)}
-                className="border-white/10 bg-transparent p-0 shadow-none"
-                displayClassName="text-white/90"
-              />
-              <EditableField
-                label="Address"
-                value={affiliate.address}
-                onSave={(v) => updateAffiliate('address', v)}
-                className="border-white/10 bg-transparent p-0 shadow-none"
-                displayClassName="text-white/90"
-              />
-            </div>
-          </div>
-        </section>
-
-        <nav
-          className="flex gap-1 overflow-x-auto border-b"
-          aria-label="Affiliate dashboard sections"
-        >
-          {sections.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setSection(item)}
-              className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition ${section === item
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
+            <nav
+              className="flex gap-1 overflow-x-auto border-b"
+              aria-label="Affiliate dashboard sections"
             >
-              {item}
-            </button>
-          ))}
-        </nav>
+              {sections.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setSection(item)}
+                  className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition ${section === item
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </nav>
 
-        {section === 'Overview' && (
-          <>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <Metric
-                icon={Users}
-                label="Declared members"
-                value={membership.declared.toLocaleString()}
-                helper={`${membership.paid.toLocaleString()} paid-up`}
-                detail={`${paidUpPct}% paid-up`}
-              />
-              <Metric
-                icon={CircleDollarSign}
-                label="Dues recorded · 2026"
-                value={money(totalDues2026)}
-                helper={`Last payment: ${dueRows[0]?.date ?? '—'}`}
-                detail="Up to date"
-              />
-              <Metric
-                icon={FolderKanban}
-                label="Active programmes"
-                value={String(projects.length)}
-                helper={`${projects.filter((p) => p.status === 'In progress').length} in progress`}
-                detail="View programmes"
-              />
-              <Metric
-                icon={Headphones}
-                label="Open support cases"
-                value={String(cases.length)}
-                helper={`Most recent: ${cases[0]?.updated ?? '—'}`}
-                detail="View support"
-              />
-            </div>
+            {section === 'Overview' && (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <Metric
+                    icon={Users}
+                    label="Declared members"
+                    value={membership.declared.toLocaleString()}
+                    helper={`${membership.paid.toLocaleString()} paid-up`}
+                    detail={`${paidUpPct}% paid-up`}
+                  />
+                  <Metric
+                    icon={CircleDollarSign}
+                    label="Dues recorded · 2026"
+                    value={money(totalDues2026)}
+                    helper={`Last payment: ${dueRows[0]?.date ?? '—'}`}
+                    detail="Up to date"
+                  />
+                  <Metric
+                    icon={FolderKanban}
+                    label="Active programmes"
+                    value={String(projects.length)}
+                    helper={`${projects.filter((p) => p.status === 'In progress').length} in progress`}
+                    detail="View programmes"
+                  />
+                  <Metric
+                    icon={Headphones}
+                    label="Open support cases"
+                    value={String(cases.length)}
+                    helper={`Most recent: ${cases[0]?.updated ?? '—'}`}
+                    detail="View support"
+                  />
+                </div>
 
-            <div className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
-              <Card className="rounded-2xl">
-                <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2">
-                  <div>
-                    <CardTitle className="text-base">Membership snapshot</CardTitle>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Edit full figures under Membership
-                    </p>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={() => setSection('Membership')}>
-                    Manage <ChevronRight className="ml-1 h-4 w-4" />
+                <div className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+                  <Card className="rounded-2xl">
+                    <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2">
+                      <div>
+                        <CardTitle className="text-base">Membership snapshot</CardTitle>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Edit full figures under Membership
+                        </p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => setSection('Membership')}>
+                        Manage <ChevronRight className="ml-1 h-4 w-4" />
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="space-y-5 pt-3">
+                      <div>
+                        <div className="mb-2 flex justify-between text-sm">
+                          <span className="text-muted-foreground">Paid-up membership</span>
+                          <span className="font-medium">
+                            {membership.paid.toLocaleString()} / {membership.declared.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-emerald-600"
+                            style={{ width: `${paidUpPct}%` }}
+                          />
+                        </div>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {gap.toLocaleString()} members still need to be included in the paid-up return.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <MiniStat label="Women" value={membership.women.toLocaleString()} />
+                        <MiniStat label="Men" value={membership.men.toLocaleString()} />
+                        <MiniStat label="Other" value={membership.other.toLocaleString()} />
+                        <MiniStat label="Shop stewards" value={String(membership.stewards)} />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="rounded-2xl">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Recent dues</CardTitle>
+                      <p className="text-sm text-muted-foreground">Monthly affiliate subscription</p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex h-28 items-end justify-between gap-3 px-1">
+                        {duesChart.map((item) => (
+                          <div
+                            key={item.month}
+                            className="flex h-full flex-1 flex-col items-center justify-end gap-2"
+                          >
+                            <div
+                              className="w-full max-w-12 rounded-t-md bg-emerald-600/80"
+                              style={{
+                                height: `${Math.max(15, (item.amount / maxDues) * 72)}%`,
+                              }}
+                            />
+                            <span className="text-xs text-muted-foreground">{item.month}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4 flex items-center justify-between border-t pt-3 text-sm">
+                        <span className="text-muted-foreground">Latest payment</span>
+                        <span className="font-medium">
+                          {dueRows[0] ? `${money(dueRows[0].amount)} · ${dueRows[0].date}` : '—'}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="grid gap-5 xl:grid-cols-2">
+                  <Card className="rounded-2xl">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <div>
+                        <CardTitle className="text-base">Upcoming events</CardTitle>
+                        <p className="mt-1 text-sm text-muted-foreground">Manage under Programmes</p>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => setSection('Programmes')}>
+                        See all <ChevronRight className="ml-1 h-4 w-4" />
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="divide-y">
+                      {events.slice(0, 2).map((event) => (
+                        <div key={event.title} className="flex gap-4 py-3">
+                          <div className="flex h-12 w-14 shrink-0 flex-col items-center justify-center rounded-lg bg-emerald-50 text-emerald-800">
+                            <CalendarDays className="mb-0.5 h-4 w-4" />
+                            <span className="text-[10px] font-semibold">{event.date}</span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-medium">{event.title}</p>
+                              <Badge variant="secondary" className="text-[10px]">
+                                {event.kind}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                              <MapPin className="h-3 w-3" />
+                              {event.place}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="rounded-2xl">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <div>
+                        <CardTitle className="text-base">Recent documents</CardTitle>
+                        <p className="mt-1 text-sm text-muted-foreground">Shared with your affiliate</p>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => setSection('Documents')}>
+                        Browse <ChevronRight className="ml-1 h-4 w-4" />
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="divide-y">
+                      {documents.slice(0, 2).map((doc) => (
+                        <div key={doc.name} className="flex items-center gap-3 py-3">
+                          <div className="rounded-lg bg-muted p-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">{doc.name}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {doc.type} · Added {doc.date}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 text-sm">
+                  <p className="flex items-center gap-2 text-muted-foreground">
+                    <Clock3 className="h-4 w-4" />
+                    Affiliate record last updated {affiliate.updated}
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => setSection('Support')}>
+                    Contact TUCOSWA <ChevronRight className="ml-1 h-4 w-4" />
                   </Button>
-                </CardHeader>
-                <CardContent className="space-y-5 pt-3">
-                  <div>
-                    <div className="mb-2 flex justify-between text-sm">
-                      <span className="text-muted-foreground">Paid-up membership</span>
-                      <span className="font-medium">
-                        {membership.paid.toLocaleString()} / {membership.declared.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="h-2.5 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-emerald-600"
-                        style={{ width: `${paidUpPct}%` }}
-                      />
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {gap.toLocaleString()} members still need to be included in the paid-up return.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <MiniStat label="Women" value={membership.women.toLocaleString()} />
-                    <MiniStat label="Men" value={membership.men.toLocaleString()} />
-                    <MiniStat label="Other" value={membership.other.toLocaleString()} />
-                    <MiniStat label="Shop stewards" value={String(membership.stewards)} />
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+              </>
+            )}
 
-              <Card className="rounded-2xl">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Recent dues</CardTitle>
-                  <p className="text-sm text-muted-foreground">Monthly affiliate subscription</p>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex h-28 items-end justify-between gap-3 px-1">
-                    {initialDuesChart.map((item) => (
-                      <div
-                        key={item.month}
-                        className="flex h-full flex-1 flex-col items-center justify-end gap-2"
-                      >
-                        <div
-                          className="w-full max-w-12 rounded-t-md bg-emerald-600/80"
-                          style={{
-                            height: `${Math.max(15, (item.amount / maxDues) * 72)}%`,
-                          }}
-                        />
-                        <span className="text-xs text-muted-foreground">{item.month}</span>
+            {section === 'About' && (
+              <>
+                <Panel title="Affiliate registration details" intro="Registration, correspondence, and governance details from this affiliate’s record.">
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                    <EditableField label="Registration number" value={extraDetails.registrationNumber} onSave={v => updateExtraDetail('registrationNumber', v)} />
+                    <EditableField label="Affiliation date" value={extraDetails.affiliationDate} type="date" onSave={v => updateExtraDetail('affiliationDate', v)} />
+                    <EditableField label="Founding date" value={extraDetails.foundingDate} type="date" onSave={v => updateExtraDetail('foundingDate', v)} />
+                    <EditableField label="Postal address" value={extraDetails.postalAddress} onSave={v => updateExtraDetail('postalAddress', v)} />
+                    <EditableField label="Website" value={extraDetails.website} onSave={v => updateExtraDetail('website', v)} />
+                    <EditableField label="Social media" value={extraDetails.socialMedia} onSave={v => updateExtraDetail('socialMedia', v)} />
+                    <EditableField label="Correspondence email" value={extraDetails.correspondenceEmail} type="email" onSave={v => updateExtraDetail('correspondenceEmail', v)} />
+                    <EditableField label="Correspondence phone" value={extraDetails.correspondencePhone} type="tel" onSave={v => updateExtraDetail('correspondencePhone', v)} />
+                    <EditableField label="Bank details" value={extraDetails.bankDetails} onSave={v => updateExtraDetail('bankDetails', v)} />
+                    <EditableField label="Age groups" value={extraDetails.ageGroups} onSave={v => updateExtraDetail('ageGroups', v)} />
+                  </div>
+                </Panel>
+
+                <Panel title="Affiliate status history" intro="Recorded status changes for this affiliate.">
+                  {statusHistory.length ? <div className="divide-y">{statusHistory.map((item, index) => <div key={item.id ?? index} className="flex flex-wrap justify-between gap-2 py-2 text-sm"><span className="font-medium">{item.status}</span><span className="text-muted-foreground">{item.reason} · {item.changed_at ? new Date(item.changed_at).toLocaleDateString() : ''}{item.changed_by ? ` · ${item.changed_by}` : ''}</span></div>)}</div> : <p className="text-sm text-muted-foreground">No status history recorded.</p>}
+                </Panel>
+              </>
+            )}
+
+            {section === 'Membership' && (
+              <Panel
+                title="Membership & leadership"
+                intro={canManage ? 'Update the affiliate return and registered contacts.' : 'View the affiliate return and registered contacts.'}
+              >
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <EditableNumberField
+                    label="Declared members"
+                    value={membership.declared}
+                    onSave={(v) => updateMembership('declared', v)}
+                  />
+                  <EditableNumberField
+                    label="Paid-up members"
+                    value={membership.paid}
+                    onSave={(v) => updateMembership('paid', v)}
+                  />
+                  <EditableNumberField
+                    label="Executive committee"
+                    value={membership.executiveCommittee}
+                    onSave={(v) => updateMembership('executiveCommittee', v)}
+                  />
+                  <EditableNumberField
+                    label="Women"
+                    value={membership.women}
+                    onSave={(v) => updateMembership('women', v)}
+                  />
+                  <EditableNumberField
+                    label="Men"
+                    value={membership.men}
+                    onSave={(v) => updateMembership('men', v)}
+                  />
+                  <EditableNumberField
+                    label="Other"
+                    value={membership.other}
+                    onSave={(v) => updateMembership('other', v)}
+                  />
+                  <EditableNumberField
+                    label="Shop stewards"
+                    value={membership.stewards}
+                    onSave={(v) => updateMembership('stewards', v)}
+                  />
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <EditableField
+                    label="Regions represented"
+                    value={membership.regions}
+                    onSave={(v) => updateMembership('regions', v)}
+                  />
+                  <EditableField
+                    label="Sectors"
+                    value={membership.sectors}
+                    onSave={(v) => updateMembership('sectors', v)}
+                  />
+                  <EditableField
+                    label="Last congress"
+                    value={membership.lastCongress}
+                    onSave={(v) => updateMembership('lastCongress', v)}
+                  />
+                  <EditableField
+                    label="Constitution version"
+                    value={membership.constitutionVersion}
+                    onSave={(v) => updateMembership('constitutionVersion', v)}
+                  />
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <h3 className="font-medium">Registered leadership</h3>
+                  {leadership.length ? <div className="mt-3 divide-y">{leadership.map((leader, index) => <div key={`${leader.position}-${index}`} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2 text-sm"><span className="font-medium">{leader.position}</span><span>{leader.name}{leader.email ? ` · ${leader.email}` : ''}{leader.phone ? ` · ${leader.phone}` : ''}</span></div>)}</div> : <p className="mt-2 text-sm text-muted-foreground">No leadership details recorded.</p>}
+                </div>
+
+                <p className="rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">Changes are saved to the selected affiliate record.</p>
+              </Panel>
+            )}
+
+            {section === 'Dues & finance' && (
+              <Panel
+                title="Dues & financial standing"
+                intro={canManage ? 'Record subscription payments and review financial standing.' : 'View recorded subscription payments and financial standing.'}
+              >
+                <div className='flex justify-end'>
+                  {canManage && <Button className="gap-2" onClick={() => setShowAddDue(true)}>
+                    <Plus className="h-4 w-4" />
+                    Record payment
+                  </Button>}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="grid flex-1 gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">2026 payments</p>
+                      <p className="mt-1 text-lg font-semibold">{money(totalDues2026)}</p>
+                    </div>
+                    <EditableField
+                      label="Monthly rate"
+                      value={monthlyRate}
+                      onSave={async (v) => {
+                        if (!canManage || !currentAffiliate) return
+                        const supabase = getSupabaseBrowserClient()
+                        if (!supabase) throw new Error('Supabase is not configured.')
+                        const { error } = await supabase.from('affiliates').update({ dues_rate: v, updated_at: new Date().toISOString() }).eq('id', currentAffiliate.id)
+                        if (error) throw error
+                        setMonthlyRate(v); touchUpdated()
+                      }}
+                    />
+                    <EditableField
+                      label="Financial standing"
+                      value={affiliate.standing}
+                      onSave={(v) => updateAffiliate('standing', v)}
+                    />
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-muted/50 text-muted-foreground">
+                      <tr>
+                        <th className="p-3 font-medium">Date</th>
+                        <th className="p-3 font-medium">Reference</th>
+                        <th className="p-3 font-medium">Amount</th>
+                        <th className="p-3 font-medium">Status</th>
+                        <th className="p-3 font-medium">Attachment</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {dueRows.map((row) => (
+                        <tr key={row.id}>
+                          <td className="p-3">{row.date}</td>
+                          <td className="p-3 font-mono text-xs">{row.reference}</td>
+                          <td className="p-3">{money(row.amount)}</td>
+                          <td className="p-3">
+                            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{row.status}</Badge>
+                          </td>
+                          <td className="p-3">
+                            {row.fileDataUrl ? (
+                              <a
+                                href={row.fileDataUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                {row.fileName || 'View file'}
+                              </a>
+                            ) : row.fileName ? (
+                              <span className="text-muted-foreground">{row.fileName}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Panel>
+            )}
+
+            {section === 'Programmes' && (
+              <Panel
+                title="Programmes & events"
+                intro={canManage ? 'Manage affiliate programmes and events, including archived records.' : 'View affiliate programmes, events, and archived records.'}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex gap-1 rounded-lg border p-1">
+                    <Button type="button" size="sm" variant={programmesView === 'active' ? 'default' : 'ghost'} onClick={() => setProgrammesView('active')}>
+                      Active
+                    </Button>
+                    <Button type="button" size="sm" variant={programmesView === 'archived' ? 'default' : 'ghost'} onClick={() => setProgrammesView('archived')}>
+                      Archived ({archivedProjects.length + archivedEvents.length})
+                    </Button>
+                  </div>
+                  {canManage && programmesView === 'active' && (
+                    <div className="flex flex-wrap gap-2">
+                      {canManage && <Button variant="outline" className="gap-2" onClick={() => setShowAddEvent(true)}>
+                        <Plus className="h-4 w-4" /> Add event
+                      </Button>}
+                      {canManage && <Button className="gap-2" onClick={() => setShowAddProgramme(true)}>
+                        <Plus className="h-4 w-4" /> Add programme
+                      </Button>}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  <p className="text-sm font-medium">Programmes</p>
+                  {(programmesView === 'active' ? activeProjects : archivedProjects).length === 0 && (
+                    <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      No {programmesView} programmes.
+                    </p>
+                  )}
+                  {(programmesView === 'active' ? activeProjects : archivedProjects).map((project) => {
+                    const index = projects.findIndex((p) => p.id === project.id)
+                    return (
+                      <div key={project.id} className="space-y-3 rounded-xl border p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <Badge variant={project.archived ? 'secondary' : project.status === 'In progress' ? 'default' : 'secondary'}>
+                            {project.archived ? 'Archived' : project.status}
+                          </Badge>
+                          {canManage && <div className="flex flex-wrap gap-1">
+                            {project.archived ? (
+                              <Button type="button" variant="outline" size="sm" onClick={() => restoreProject(project.id)}>
+                                Restore
+                              </Button>
+                            ) : (
+                              <Button type="button" variant="outline" size="sm" onClick={() => archiveProject(project.id)}>
+                                <Archive className="mr-1 h-3.5 w-3.5" /> Archive
+                              </Button>
+                            )}
+                            <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => deleteProject(project.id)}>
+                              <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
+                            </Button>
+                          </div>}
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <EditableField label="Programme title" value={project.title} onSave={(v) => updateProjectField(index, 'title', v)} />
+                          <EditableField label="Status" value={project.status} onSave={(v) => updateProjectField(index, 'status', v)} />
+                          <EditableField label="Lead" value={project.lead} onSave={(v) => updateProjectField(index, 'lead', v)} />
+                          <EditableNumberField label="Progress %" value={project.progress} onSave={(v) => updateProjectField(index, 'progress', Math.min(100, v))} />
+                        </div>
+                        <div className="h-2 rounded-full bg-muted">
+                          <div className="h-full rounded-full bg-primary" style={{ width: `${project.progress}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Events</p>
+                  {(programmesView === 'active' ? activeEvents : archivedEvents).length === 0 && (
+                    <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      No {programmesView} events.
+                    </p>
+                  )}
+                  {(programmesView === 'active' ? activeEvents : archivedEvents).map((event) => {
+                    const index = events.findIndex((ev) => ev.id === event.id)
+                    return (
+                      <div key={event.id} className="space-y-3 rounded-xl border p-4">
+                        {canManage && <div className="flex flex-wrap justify-end gap-1">
+                          {event.archived ? (
+                            <Button type="button" variant="outline" size="sm" onClick={() => restoreEvent(event.id)}>Restore</Button>
+                          ) : (
+                            <Button type="button" variant="outline" size="sm" onClick={() => archiveEvent(event.id)}>
+                              <Archive className="mr-1 h-3.5 w-3.5" /> Archive
+                            </Button>
+                          )}
+                          <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => deleteEvent(event.id)}>
+                            <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
+                          </Button>
+                        </div>}
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <EditableField label="Title" value={event.title} onSave={(v) => updateEventField(index, 'title', v)} />
+                          <EditableField label="Date label" value={event.date} onSave={(v) => updateEventField(index, 'date', v)} />
+                          <EditableField label="Place" value={event.place} onSave={(v) => updateEventField(index, 'place', v)} />
+                          <EditableField label="Kind" value={event.kind} onSave={(v) => updateEventField(index, 'kind', v)} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </Panel>
+            )}
+
+            {section === 'Documents' && (
+              <Panel
+                title="Affiliate documents"
+                intro={canManage ? 'Upload, preview, download, archive, or remove affiliate documents.' : 'View and download documents uploaded for this affiliate.'}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex gap-1 rounded-lg border p-1">
+                    <Button type="button" size="sm" variant={documentsView === 'active' ? 'default' : 'ghost'} onClick={() => setDocumentsView('active')}>
+                      Active
+                    </Button>
+                    <Button type="button" size="sm" variant={documentsView === 'archived' ? 'default' : 'ghost'} onClick={() => setDocumentsView('archived')}>
+                      Archived ({archivedDocuments.length})
+                    </Button>
+                  </div>
+                  {canManage && documentsView === 'active' && (
+                    <Button className="gap-2" onClick={() => setShowUploadDoc(true)}>
+                      <Upload className="h-4 w-4" /> Upload document
+                    </Button>
+                  )}
+                </div>
+
+                {visibleDocuments.length === 0 ? (
+                  <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                    No {documentsView} documents.
+                  </p>
+                ) : (
+                  <div className="divide-y rounded-xl border">
+                    {visibleDocuments.map((doc) => (
+                      <div key={doc.id} className="flex flex-wrap items-center gap-3 p-4">
+                        <div className="rounded-lg bg-muted p-2">
+                          <FileText className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">{doc.name}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {doc.type} · {doc.date}
+                            {doc.caption ? ` · ${doc.caption}` : ''}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          <Button type="button" variant="outline" size="sm" onClick={() => setPreviewDoc(doc)}>
+                            Preview
+                          </Button>
+                          {doc.fileDataUrl && <Button type="button" variant="outline" size="sm" onClick={() => void downloadDocument(doc)}><Download className="mr-1 h-3.5 w-3.5" />Download</Button>}
+                          {canManage && <Button type="button" variant="ghost" size="sm" onClick={() => void shareDocument(doc)}>Share</Button>}
+                          {canManage && <>
+                            {doc.archived ? (
+                              <Button type="button" variant="outline" size="sm" onClick={() => restoreDocument(doc.id)}>Restore</Button>
+                            ) : (
+                              <Button type="button" variant="outline" size="sm" onClick={() => archiveDocument(doc.id)}>
+                                <Archive className="mr-1 h-3.5 w-3.5" /> Archive
+                              </Button>
+                            )}
+                            <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => removeDocument(doc.id)}>
+                              <Trash2 className="mr-1 h-3.5 w-3.5" /> Remove
+                            </Button>
+                          </>}
+                        </div>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 flex items-center justify-between border-t pt-3 text-sm">
-                    <span className="text-muted-foreground">Latest payment</span>
-                    <span className="font-medium">
-                      {dueRows[0] ? `${money(dueRows[0].amount)} · ${dueRows[0].date}` : '—'}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                )}
+              </Panel>
+            )}
 
-            <div className="grid gap-5 xl:grid-cols-2">
-              <Card className="rounded-2xl">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <div>
-                    <CardTitle className="text-base">Upcoming events</CardTitle>
-                    <p className="mt-1 text-sm text-muted-foreground">Manage under Programmes</p>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => setSection('Programmes')}>
-                    See all <ChevronRight className="ml-1 h-4 w-4" />
-                  </Button>
-                </CardHeader>
-                <CardContent className="divide-y">
-                  {events.slice(0, 2).map((event) => (
-                    <div key={event.title} className="flex gap-4 py-3">
-                      <div className="flex h-12 w-14 shrink-0 flex-col items-center justify-center rounded-lg bg-emerald-50 text-emerald-800">
-                        <CalendarDays className="mb-0.5 h-4 w-4" />
-                        <span className="text-[10px] font-semibold">{event.date}</span>
-                      </div>
+            {section === 'Support' && (
+              <Panel
+                title="Support cases"
+                intro="Follow requests submitted by your affiliate. Case status is updated by the TUCOSWA helpdesk."
+              >
+                <div className="flex justify-end">
+                  {canManage && <Button
+                    type="button"
+                    className="gap-2"
+                    onClick={() => setShowFileCase(true)}
+                    disabled={!currentAffiliate || isFilingCase}
+                  >
+                    <Plus className="h-4 w-4" /> Make Query
+                  </Button>}
+                </div>
+                <div className="space-y-3">
+                  {cases.length === 0 ? (
+                    <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      No support cases submitted yet.
+                    </p>
+                  ) : cases.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex flex-wrap items-center gap-3 rounded-xl border p-4"
+                    >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-medium">{event.title}</p>
-                          <Badge variant="secondary" className="text-[10px]">
-                            {event.kind}
+                          <p className="text-sm font-medium">{item.title}</p>
+                          <Badge variant={item.status === 'In progress' ? 'default' : 'secondary'}>
+                            {item.status}
                           </Badge>
                         </div>
-                        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                          <MapPin className="h-3 w-3" />
-                          {event.place}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-2xl">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <div>
-                    <CardTitle className="text-base">Recent documents</CardTitle>
-                    <p className="mt-1 text-sm text-muted-foreground">Shared with your affiliate</p>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => setSection('Documents')}>
-                    Browse <ChevronRight className="ml-1 h-4 w-4" />
-                  </Button>
-                </CardHeader>
-                <CardContent className="divide-y">
-                  {documents.slice(0, 2).map((doc) => (
-                    <div key={doc.name} className="flex items-center gap-3 py-3">
-                      <div className="rounded-lg bg-muted p-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{doc.name}</p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {doc.type} · Added {doc.date}
+                          {item.id} · Updated {item.updated}
                         </p>
                       </div>
+                      <Button variant="outline" size="sm" type="button">
+                        View case
+                      </Button>
                     </div>
                   ))}
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 text-sm">
-              <p className="flex items-center gap-2 text-muted-foreground">
-                <Clock3 className="h-4 w-4" />
-                Affiliate record last updated {affiliate.updated}
-              </p>
-              <Button variant="outline" size="sm" onClick={() => setSection('Support')}>
-                Contact TUCOSWA <ChevronRight className="ml-1 h-4 w-4" />
-              </Button>
-            </div>
-          </>
-        )}
-
-        {section === 'Membership' && (
-          <Panel
-            title="Membership & leadership"
-            intro="Update your affiliate return and registered contacts. Click Edit on any field to change it."
-          >
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <EditableNumberField
-                label="Declared members"
-                value={membership.declared}
-                onSave={(v) => updateMembership('declared', v)}
-              />
-              <EditableNumberField
-                label="Paid-up members"
-                value={membership.paid}
-                onSave={(v) => updateMembership('paid', v)}
-              />
-              <EditableNumberField
-                label="Executive committee"
-                value={membership.executiveCommittee}
-                onSave={(v) => updateMembership('executiveCommittee', v)}
-              />
-              <EditableNumberField
-                label="Women"
-                value={membership.women}
-                onSave={(v) => updateMembership('women', v)}
-              />
-              <EditableNumberField
-                label="Men"
-                value={membership.men}
-                onSave={(v) => updateMembership('men', v)}
-              />
-              <EditableNumberField
-                label="Other"
-                value={membership.other}
-                onSave={(v) => updateMembership('other', v)}
-              />
-              <EditableNumberField
-                label="Shop stewards"
-                value={membership.stewards}
-                onSave={(v) => updateMembership('stewards', v)}
-              />
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <EditableField
-                label="Regions represented"
-                value={membership.regions}
-                onSave={(v) => updateMembership('regions', v)}
-              />
-              <EditableField
-                label="Sectors"
-                value={membership.sectors}
-                onSave={(v) => updateMembership('sectors', v)}
-              />
-              <EditableField
-                label="Last congress"
-                value={membership.lastCongress}
-                onSave={(v) => updateMembership('lastCongress', v)}
-              />
-              <EditableField
-                label="Constitution version"
-                value={membership.constitutionVersion}
-                onSave={(v) => updateMembership('constitutionVersion', v)}
-              />
-            </div>
-
-            <p className="rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">
-              Changes are held in this workspace session. Wire Save handlers to your affiliate-scoped
-              Supabase update when accounts are linked.
-            </p>
-          </Panel>
-        )}
-
-        {section === 'Dues & finance' && (
-          <Panel
-            title="Dues & financial standing"
-            intro="Record subscription payments and attach a receipt or proof. Standing is supervised by TUCOSWA finance."
-          >
-            <div className='flex justify-end'>
-              <Button className="gap-2" onClick={() => setShowAddDue(true)}>
-                <Plus className="h-4 w-4" />
-                Record payment
-              </Button>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="grid flex-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-xl border p-4">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">2026 payments</p>
-                  <p className="mt-1 text-lg font-semibold">{money(totalDues2026)}</p>
                 </div>
-                <EditableField
-                  label="Monthly rate"
-                  value={monthlyRate}
-                  onSave={(v) => {
-                    setMonthlyRate(v)
-                    touchUpdated()
-                  }}
-                />
-                <EditableField
-                  label="Financial standing"
-                  value={affiliate.standing}
-                  onSave={(v) => updateAffiliate('standing', v)}
-                  readOnly
-                />
-              </div>
-            </div>
-
-            <div className="overflow-x-auto rounded-xl border">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-muted/50 text-muted-foreground">
-                  <tr>
-                    <th className="p-3 font-medium">Date</th>
-                    <th className="p-3 font-medium">Reference</th>
-                    <th className="p-3 font-medium">Amount</th>
-                    <th className="p-3 font-medium">Status</th>
-                    <th className="p-3 font-medium">Attachment</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {dueRows.map((row) => (
-                    <tr key={row.id}>
-                      <td className="p-3">{row.date}</td>
-                      <td className="p-3 font-mono text-xs">{row.reference}</td>
-                      <td className="p-3">{money(row.amount)}</td>
-                      <td className="p-3">
-                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{row.status}</Badge>
-                      </td>
-                      <td className="p-3">
-                        {row.fileDataUrl ? (
-                          <a
-                            href={row.fileDataUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline"
-                          >
-                            <FileText className="h-3.5 w-3.5" />
-                            {row.fileName || 'View file'}
-                          </a>
-                        ) : row.fileName ? (
-                          <span className="text-muted-foreground">{row.fileName}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Panel>
-        )}
-
-        {section === 'Programmes' && (
-          <Panel
-            title="Programmes & events"
-            intro="Add programmes and events, edit fields inline, or archive/delete records. Archived items are hidden from the active list."
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex gap-1 rounded-lg border p-1">
-                <Button type="button" size="sm" variant={programmesView === 'active' ? 'default' : 'ghost'} onClick={() => setProgrammesView('active')}>
-                  Active
-                </Button>
-                <Button type="button" size="sm" variant={programmesView === 'archived' ? 'default' : 'ghost'} onClick={() => setProgrammesView('archived')}>
-                  Archived ({archivedProjects.length + archivedEvents.length})
-                </Button>
-              </div>
-              {programmesView === 'active' && (
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" className="gap-2" onClick={() => setShowAddEvent(true)}>
-                    <Plus className="h-4 w-4" /> Add event
+                {isAffiliateSecretary && (<div className="rounded-xl bg-muted/60 p-4">
+                  <p className="text-sm font-medium">Need assistance?</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Reach the TUCOSWA helpdesk at helpdesk@tucoswa.org.sz or +268 2404 6810.
+                  </p>
+                  <Button className="mt-3" size="sm" asChild>
+                    <Link href="tel:+286 000 000">Open helpdesk</Link>
                   </Button>
-                  <Button className="gap-2" onClick={() => setShowAddProgramme(true)}>
-                    <Plus className="h-4 w-4" /> Add programme
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <p className="text-sm font-medium">Programmes</p>
-              {(programmesView === 'active' ? activeProjects : archivedProjects).length === 0 && (
-                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  No {programmesView} programmes.
-                </p>
-              )}
-              {(programmesView === 'active' ? activeProjects : archivedProjects).map((project) => {
-                const index = projects.findIndex((p) => p.id === project.id)
-                return (
-                  <div key={project.id} className="space-y-3 rounded-xl border p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <Badge variant={project.archived ? 'secondary' : project.status === 'In progress' ? 'default' : 'secondary'}>
-                        {project.archived ? 'Archived' : project.status}
-                      </Badge>
-                      <div className="flex flex-wrap gap-1">
-                        {project.archived ? (
-                          <Button type="button" variant="outline" size="sm" onClick={() => restoreProject(project.id)}>
-                            Restore
-                          </Button>
-                        ) : (
-                          <Button type="button" variant="outline" size="sm" onClick={() => archiveProject(project.id)}>
-                            <Archive className="mr-1 h-3.5 w-3.5" /> Archive
-                          </Button>
-                        )}
-                        <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => deleteProject(project.id)}>
-                          <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <EditableField label="Programme title" value={project.title} onSave={(v) => updateProjectField(index, 'title', v)} />
-                      <EditableField label="Status" value={project.status} onSave={(v) => updateProjectField(index, 'status', v)} />
-                      <EditableField label="Lead" value={project.lead} onSave={(v) => updateProjectField(index, 'lead', v)} />
-                      <EditableNumberField label="Progress %" value={project.progress} onSave={(v) => updateProjectField(index, 'progress', Math.min(100, v))} />
-                    </div>
-                    <div className="h-2 rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${project.progress}%` }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-sm font-medium">Events</p>
-              {(programmesView === 'active' ? activeEvents : archivedEvents).length === 0 && (
-                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  No {programmesView} events.
-                </p>
-              )}
-              {(programmesView === 'active' ? activeEvents : archivedEvents).map((event) => {
-                const index = events.findIndex((ev) => ev.id === event.id)
-                return (
-                  <div key={event.id} className="space-y-3 rounded-xl border p-4">
-                    <div className="flex flex-wrap justify-end gap-1">
-                      {event.archived ? (
-                        <Button type="button" variant="outline" size="sm" onClick={() => restoreEvent(event.id)}>Restore</Button>
-                      ) : (
-                        <Button type="button" variant="outline" size="sm" onClick={() => archiveEvent(event.id)}>
-                          <Archive className="mr-1 h-3.5 w-3.5" /> Archive
-                        </Button>
-                      )}
-                      <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => deleteEvent(event.id)}>
-                        <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
-                      </Button>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <EditableField label="Title" value={event.title} onSave={(v) => updateEventField(index, 'title', v)} />
-                      <EditableField label="Date label" value={event.date} onSave={(v) => updateEventField(index, 'date', v)} />
-                      <EditableField label="Place" value={event.place} onSave={(v) => updateEventField(index, 'place', v)} />
-                      <EditableField label="Kind" value={event.kind} onSave={(v) => updateEventField(index, 'kind', v)} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </Panel>
-        )}
-
-        {section === 'Documents' && (
-          <Panel
-            title="Affiliate documents"
-            intro="Upload files with a type and caption. Sorted by date. Preview, share, archive, or remove each item."
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex gap-1 rounded-lg border p-1">
-                <Button type="button" size="sm" variant={documentsView === 'active' ? 'default' : 'ghost'} onClick={() => setDocumentsView('active')}>
-                  Active
-                </Button>
-                <Button type="button" size="sm" variant={documentsView === 'archived' ? 'default' : 'ghost'} onClick={() => setDocumentsView('archived')}>
-                  Archived ({archivedDocuments.length})
-                </Button>
-              </div>
-              {documentsView === 'active' && (
-                <Button className="gap-2" onClick={() => setShowUploadDoc(true)}>
-                  <Upload className="h-4 w-4" /> Upload document
-                </Button>
-              )}
-            </div>
-
-            {visibleDocuments.length === 0 ? (
-              <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                No {documentsView} documents.
-              </p>
-            ) : (
-              <div className="divide-y rounded-xl border">
-                {visibleDocuments.map((doc) => (
-                  <div key={doc.id} className="flex flex-wrap items-center gap-3 p-4">
-                    <div className="rounded-lg bg-muted p-2">
-                      <FileText className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{doc.name}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {doc.type} · {doc.date}
-                        {doc.caption ? ` · ${doc.caption}` : ''}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      <Button type="button" variant="outline" size="sm" onClick={() => setPreviewDoc(doc)}>
-                        Preview
-                      </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => void shareDocument(doc)}>
-                        Share
-                      </Button>
-                      {doc.archived ? (
-                        <Button type="button" variant="outline" size="sm" onClick={() => restoreDocument(doc.id)}>
-                          Restore
-                        </Button>
-                      ) : (
-                        <Button type="button" variant="outline" size="sm" onClick={() => archiveDocument(doc.id)}>
-                          <Archive className="mr-1 h-3.5 w-3.5" /> Archive
-                        </Button>
-                      )}
-                      <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => removeDocument(doc.id)}>
-                        <Trash2 className="mr-1 h-3.5 w-3.5" /> Remove
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                </div>)}
+              </Panel>
             )}
-          </Panel>
-        )}
+          </div>
 
-        {section === 'Support' && (
-          <Panel
-            title="Support cases"
-            intro="Follow requests submitted by your affiliate. Case status is updated by the TUCOSWA helpdesk."
-          >
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                className="gap-2"
-                onClick={() => setShowFileCase(true)}
-                disabled={!currentAffiliate || isFilingCase}
-              >
-                <Plus className="h-4 w-4" /> Make Query
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {cases.length === 0 ? (
-                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  No support cases submitted yet.
-                </p>
-              ) : cases.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex flex-wrap items-center gap-3 rounded-xl border p-4"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-medium">{item.title}</p>
-                      <Badge variant={item.status === 'In progress' ? 'default' : 'secondary'}>
-                        {item.status}
-                      </Badge>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {item.id} · Updated {item.updated}
-                    </p>
-                  </div>
-                  <Button variant="outline" size="sm" type="button">
-                    View case
+          <FileCaseModal
+            open={showFileCase}
+            onOpenChange={setShowFileCase}
+            onSubmit={handleMakeQuery}
+            isLoading={isFilingCase}
+            affiliate={currentAffiliate ?? undefined}
+          />
+
+          {/* Preview Documents */}
+          <Dialog open={Boolean(previewDoc)} onOpenChange={(o) => !o && setPreviewDoc(null)}>
+            <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{previewDoc?.name}</DialogTitle>
+                <DialogDescription>
+                  {previewDoc?.type} · {previewDoc?.date}
+                  {previewDoc?.caption ? ` · ${previewDoc.caption}` : ''}
+                </DialogDescription>
+              </DialogHeader>
+              {previewDoc?.fileDataUrl && previewDoc.fileType?.startsWith('image/') ? (
+                <img src={previewDoc.fileDataUrl} alt={previewDoc.name} className="max-h-[60vh] w-full rounded-lg object-contain" />
+              ) : previewDoc?.fileDataUrl ? (
+                <div className="space-y-3 rounded-lg border bg-muted/30 p-4 text-sm">
+                  <p>Preview is available as a download for this file type.</p>
+                  <Button type="button" variant="link" className="h-auto p-0" onClick={() => previewDoc && void downloadDocument(previewDoc)}>
+                    <Download className="mr-2 h-4 w-4" /> Download {previewDoc.fileName || 'file'}
                   </Button>
                 </div>
-              ))}
-            </div>
-            <div className="rounded-xl bg-muted/60 p-4">
-              <p className="text-sm font-medium">Need assistance?</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Reach the TUCOSWA helpdesk at helpdesk@tucoswa.org.sz or +268 2404 6810.
-              </p>
-              <Button className="mt-3" size="sm" asChild>
-                <Link href="tel:+286 000 000">Open helpdesk</Link>
-              </Button>
-            </div>
-          </Panel>
-        )}
+              ) : (
+                <p className="text-sm text-muted-foreground">No file content stored for preview (metadata only).</p>
+              )}
+              <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+                {canManage && <Button type="button" variant="outline" onClick={() => previewDoc && void shareDocument(previewDoc)}>Share</Button>}
+                <Button type="button" variant="outline" onClick={() => setPreviewDoc(null)}>Close</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Modal For Payments of Dues */}
+          <Dialog open={canManage && showAddDue} onOpenChange={(o) => !modalBusy && setShowAddDue(o)}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Record subscription payment</DialogTitle>
+                <DialogDescription>Enter payment details and optionally attach a receipt (PDF or image).</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={addDue} className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="due-date">Date *</Label>
+                    <Input id="due-date" required value={dueForm.date} onChange={(e) => setDueForm((f) => ({ ...f, date: e.target.value }))} placeholder="4 Nov 2026" disabled={modalBusy} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="due-ref">Reference *</Label>
+                    <Input id="due-ref" required value={dueForm.reference} onChange={(e) => setDueForm((f) => ({ ...f, reference: e.target.value }))} placeholder="TUC-SNAT-26-105" disabled={modalBusy} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="due-amount">Amount (E) *</Label>
+                    <Input id="due-amount" type="number" min="0" step="0.01" required value={dueForm.amount} onChange={(e) => setDueForm((f) => ({ ...f, amount: e.target.value }))} disabled={modalBusy} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="due-status">Status</Label>
+                    <select id="due-status" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={dueForm.status} onChange={(e) => setDueForm((f) => ({ ...f, status: e.target.value }))} disabled={modalBusy}>
+                      <option>Received</option>
+                      <option>Pending</option>
+                      <option>Queried</option>
+                    </select>
+                  </div>
+                </div>
+                <WorkspaceFilePicker
+                  id="due-file"
+                  label="Receipt / proof of payment"
+                  hint="PDF, JPG, PNG · recommended max 1.5 MB"
+                  accept="image/*,.pdf,application/pdf"
+                  file={dueFile}
+                  previewUrl={duePreview}
+                  disabled={modalBusy}
+                  onChange={setDueFile}
+                  onClear={() => setDueFile(null)}
+                />
+                <div className="flex justify-end gap-2 border-t pt-4">
+                  <Button type="button" variant="outline" disabled={modalBusy} onClick={() => setShowAddDue(false)}>Cancel</Button>
+                  <Button type="submit" disabled={modalBusy}>
+                    {modalBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving…</> : 'Save payment'}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Modal For Uploading documents */}
+          <Dialog open={canManage && showUploadDoc} onOpenChange={(o) => !modalBusy && setShowUploadDoc(o)}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Upload document</DialogTitle>
+                <DialogDescription>Attach a file and set its type and caption for your affiliate register.</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={uploadDocument} className="space-y-4">
+                <WorkspaceFilePicker
+                  id="doc-file"
+                  label="File *"
+                  hint="PDF, Word, image · recommended max 1.5 MB for local preview"
+                  accept=".pdf,.doc,.docx,image/*,application/pdf"
+                  file={docFile}
+                  previewUrl={docPreview}
+                  disabled={modalBusy}
+                  onChange={(f) => {
+                    setDocFile(f)
+                    if (f && !docForm.name) setDocForm((prev) => ({ ...prev, name: f.name }))
+                  }}
+                  onClear={() => setDocFile(null)}
+                />
+                <div className="space-y-1.5">
+                  <Label htmlFor="doc-name">Display name</Label>
+                  <Input id="doc-name" value={docForm.name} onChange={(e) => setDocForm((f) => ({ ...f, name: e.target.value }))} disabled={modalBusy} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="doc-type">Type / category *</Label>
+                  <select id="doc-type" required className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={docForm.type} onChange={(e) => setDocForm((f) => ({ ...f, type: e.target.value }))} disabled={modalBusy}>
+                    <option>Constitution</option>
+                    <option>Registration</option>
+                    <option>Financial</option>
+                    <option>Minutes</option>
+                    <option>Resolution</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="doc-caption">Caption</Label>
+                  <Textarea id="doc-caption" value={docForm.caption} onChange={(e) => setDocForm((f) => ({ ...f, caption: e.target.value }))} placeholder="Short description for colleagues" disabled={modalBusy} />
+                </div>
+                <div className="flex justify-end gap-2 border-t pt-4">
+                  <Button type="button" variant="outline" disabled={modalBusy} onClick={() => setShowUploadDoc(false)}>Cancel</Button>
+                  <Button type="submit" disabled={modalBusy || !docFile}>
+                    {modalBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading…</> : 'Upload'}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Modal For Programme */}
+          <Dialog open={canManage && showAddProgramme} onOpenChange={(open) => !modalBusy && setShowAddProgramme(open)}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Add programme</DialogTitle>
+                <DialogDescription>
+                  Create a programme record for your affiliate workspace. You can edit fields later or archive it.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={addProgramme} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="prog-title">Programme title *</Label>
+                  <Input
+                    id="prog-title"
+                    required
+                    value={programmeForm.title}
+                    onChange={(e) => setProgrammeForm((f) => ({ ...f, title: e.target.value }))}
+                    placeholder="e.g. Young Workers Leadership Network"
+                    disabled={modalBusy}
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="prog-status">Status</Label>
+                    <select
+                      id="prog-status"
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={programmeForm.status}
+                      onChange={(e) => setProgrammeForm((f) => ({ ...f, status: e.target.value }))}
+                      disabled={modalBusy}
+                    >
+                      <option>Planning</option>
+                      <option>In progress</option>
+                      <option>On hold</option>
+                      <option>Completed</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="prog-progress">Progress %</Label>
+                    <Input
+                      id="prog-progress"
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={programmeForm.progress}
+                      onChange={(e) => setProgrammeForm((f) => ({ ...f, progress: e.target.value }))}
+                      disabled={modalBusy}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="prog-lead">Lead</Label>
+                  <Input
+                    id="prog-lead"
+                    value={programmeForm.lead}
+                    onChange={(e) => setProgrammeForm((f) => ({ ...f, lead: e.target.value }))}
+                    placeholder="e.g. SNAT + TUCOSWA"
+                    disabled={modalBusy}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 border-t pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={modalBusy}
+                    onClick={() => setShowAddProgramme(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={modalBusy || !programmeForm.title.trim()}>
+                    {modalBusy ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving…
+                      </>
+                    ) : (
+                      'Add programme'
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Modal For Event */}
+          <Dialog open={canManage && showAddEvent} onOpenChange={(open) => !modalBusy && setShowAddEvent(open)}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Add event</DialogTitle>
+                <DialogDescription>
+                  Schedule an event linked to your affiliate. Archive it when it is no longer relevant.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={addEvent} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="evt-title">Event title *</Label>
+                  <Input
+                    id="evt-title"
+                    required
+                    value={eventForm.title}
+                    onChange={(e) => setEventForm((f) => ({ ...f, title: e.target.value }))}
+                    placeholder="e.g. Affiliate Secretaries Forum"
+                    disabled={modalBusy}
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="evt-date">Date label *</Label>
+                    <Input
+                      id="evt-date"
+                      required
+                      value={eventForm.date}
+                      onChange={(e) => setEventForm((f) => ({ ...f, date: e.target.value }))}
+                      placeholder="18 Nov"
+                      disabled={modalBusy}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="evt-kind">Kind</Label>
+                    <select
+                      id="evt-kind"
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={eventForm.kind}
+                      onChange={(e) => setEventForm((f) => ({ ...f, kind: e.target.value }))}
+                      disabled={modalBusy}
+                    >
+                      <option>Meeting</option>
+                      <option>Conference</option>
+                      <option>Workshop</option>
+                      <option>Training</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="evt-place">Place *</Label>
+                  <Input
+                    id="evt-place"
+                    required
+                    value={eventForm.place}
+                    onChange={(e) => setEventForm((f) => ({ ...f, place: e.target.value }))}
+                    placeholder="TUCOSWA House, Mbabane"
+                    disabled={modalBusy}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 border-t pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={modalBusy}
+                    onClick={() => setShowAddEvent(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={modalBusy || !eventForm.title.trim() || !eventForm.date.trim()}
+                  >
+                    {modalBusy ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving…
+                      </>
+                    ) : (
+                      'Add event'
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
-
-      <FileCaseModal
-        open={showFileCase}
-        onOpenChange={setShowFileCase}
-        onSubmit={handleMakeQuery}
-        isLoading={isFilingCase}
-        affiliate={currentAffiliate ?? undefined}
-      />
-
-      {/* Preview Documents */}
-      <Dialog open={Boolean(previewDoc)} onOpenChange={(o) => !o && setPreviewDoc(null)}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{previewDoc?.name}</DialogTitle>
-            <DialogDescription>
-              {previewDoc?.type} · {previewDoc?.date}
-              {previewDoc?.caption ? ` · ${previewDoc.caption}` : ''}
-            </DialogDescription>
-          </DialogHeader>
-          {previewDoc?.fileDataUrl && previewDoc.fileType?.startsWith('image/') ? (
-            <img src={previewDoc.fileDataUrl} alt={previewDoc.name} className="max-h-[60vh] w-full rounded-lg object-contain" />
-          ) : previewDoc?.fileDataUrl ? (
-            <div className="space-y-3 rounded-lg border bg-muted/30 p-4 text-sm">
-              <p>Preview is available as a download for this file type.</p>
-              <a href={previewDoc.fileDataUrl} download={previewDoc.fileName || previewDoc.name} className="inline-flex items-center gap-2 text-primary underline-offset-2 hover:underline">
-                <Download className="h-4 w-4" /> Download {previewDoc.fileName || 'file'}
-              </a>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No file content stored for preview (metadata only).</p>
-          )}
-          <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
-            <Button type="button" variant="outline" onClick={() => previewDoc && void shareDocument(previewDoc)}>Share</Button>
-            <Button type="button" variant="outline" onClick={() => setPreviewDoc(null)}>Close</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal For Payments of Dues */}
-      <Dialog open={showAddDue} onOpenChange={(o) => !modalBusy && setShowAddDue(o)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Record subscription payment</DialogTitle>
-            <DialogDescription>Enter payment details and optionally attach a receipt (PDF or image).</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={addDue} className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="due-date">Date *</Label>
-                <Input id="due-date" required value={dueForm.date} onChange={(e) => setDueForm((f) => ({ ...f, date: e.target.value }))} placeholder="4 Nov 2026" disabled={modalBusy} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="due-ref">Reference *</Label>
-                <Input id="due-ref" required value={dueForm.reference} onChange={(e) => setDueForm((f) => ({ ...f, reference: e.target.value }))} placeholder="TUC-SNAT-26-105" disabled={modalBusy} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="due-amount">Amount (E) *</Label>
-                <Input id="due-amount" type="number" min="0" step="0.01" required value={dueForm.amount} onChange={(e) => setDueForm((f) => ({ ...f, amount: e.target.value }))} disabled={modalBusy} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="due-status">Status</Label>
-                <select id="due-status" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={dueForm.status} onChange={(e) => setDueForm((f) => ({ ...f, status: e.target.value }))} disabled={modalBusy}>
-                  <option>Received</option>
-                  <option>Pending</option>
-                  <option>Queried</option>
-                </select>
-              </div>
-            </div>
-            <WorkspaceFilePicker
-              id="due-file"
-              label="Receipt / proof of payment"
-              hint="PDF, JPG, PNG · recommended max 1.5 MB"
-              accept="image/*,.pdf,application/pdf"
-              file={dueFile}
-              previewUrl={duePreview}
-              disabled={modalBusy}
-              onChange={setDueFile}
-              onClear={() => setDueFile(null)}
-            />
-            <div className="flex justify-end gap-2 border-t pt-4">
-              <Button type="button" variant="outline" disabled={modalBusy} onClick={() => setShowAddDue(false)}>Cancel</Button>
-              <Button type="submit" disabled={modalBusy}>
-                {modalBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving…</> : 'Save payment'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal For Uploading documents */}
-      <Dialog open={showUploadDoc} onOpenChange={(o) => !modalBusy && setShowUploadDoc(o)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Upload document</DialogTitle>
-            <DialogDescription>Attach a file and set its type and caption for your affiliate register.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={uploadDocument} className="space-y-4">
-            <WorkspaceFilePicker
-              id="doc-file"
-              label="File *"
-              hint="PDF, Word, image · recommended max 1.5 MB for local preview"
-              accept=".pdf,.doc,.docx,image/*,application/pdf"
-              file={docFile}
-              previewUrl={docPreview}
-              disabled={modalBusy}
-              onChange={(f) => {
-                setDocFile(f)
-                if (f && !docForm.name) setDocForm((prev) => ({ ...prev, name: f.name }))
-              }}
-              onClear={() => setDocFile(null)}
-            />
-            <div className="space-y-1.5">
-              <Label htmlFor="doc-name">Display name</Label>
-              <Input id="doc-name" value={docForm.name} onChange={(e) => setDocForm((f) => ({ ...f, name: e.target.value }))} disabled={modalBusy} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="doc-type">Type / category *</Label>
-              <select id="doc-type" required className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={docForm.type} onChange={(e) => setDocForm((f) => ({ ...f, type: e.target.value }))} disabled={modalBusy}>
-                <option>Constitution</option>
-                <option>Membership</option>
-                <option>Financial</option>
-                <option>Minutes</option>
-                <option>Resolution</option>
-                <option>Other</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="doc-caption">Caption</Label>
-              <Textarea id="doc-caption" value={docForm.caption} onChange={(e) => setDocForm((f) => ({ ...f, caption: e.target.value }))} placeholder="Short description for colleagues" disabled={modalBusy} />
-            </div>
-            <div className="flex justify-end gap-2 border-t pt-4">
-              <Button type="button" variant="outline" disabled={modalBusy} onClick={() => setShowUploadDoc(false)}>Cancel</Button>
-              <Button type="submit" disabled={modalBusy || !docFile}>
-                {modalBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading…</> : 'Upload'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal For Programme */}
-      <Dialog open={showAddProgramme} onOpenChange={(open) => !modalBusy && setShowAddProgramme(open)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Add programme</DialogTitle>
-            <DialogDescription>
-              Create a programme record for your affiliate workspace. You can edit fields later or archive it.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={addProgramme} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="prog-title">Programme title *</Label>
-              <Input
-                id="prog-title"
-                required
-                value={programmeForm.title}
-                onChange={(e) => setProgrammeForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="e.g. Young Workers Leadership Network"
-                disabled={modalBusy}
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="prog-status">Status</Label>
-                <select
-                  id="prog-status"
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  value={programmeForm.status}
-                  onChange={(e) => setProgrammeForm((f) => ({ ...f, status: e.target.value }))}
-                  disabled={modalBusy}
-                >
-                  <option>Planning</option>
-                  <option>In progress</option>
-                  <option>On hold</option>
-                  <option>Completed</option>
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="prog-progress">Progress %</Label>
-                <Input
-                  id="prog-progress"
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={programmeForm.progress}
-                  onChange={(e) => setProgrammeForm((f) => ({ ...f, progress: e.target.value }))}
-                  disabled={modalBusy}
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="prog-lead">Lead</Label>
-              <Input
-                id="prog-lead"
-                value={programmeForm.lead}
-                onChange={(e) => setProgrammeForm((f) => ({ ...f, lead: e.target.value }))}
-                placeholder="e.g. SNAT + TUCOSWA"
-                disabled={modalBusy}
-              />
-            </div>
-            <div className="flex justify-end gap-2 border-t pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={modalBusy}
-                onClick={() => setShowAddProgramme(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={modalBusy || !programmeForm.title.trim()}>
-                {modalBusy ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving…
-                  </>
-                ) : (
-                  'Add programme'
-                )}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal For Event */}
-      <Dialog open={showAddEvent} onOpenChange={(open) => !modalBusy && setShowAddEvent(open)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Add event</DialogTitle>
-            <DialogDescription>
-              Schedule an event linked to your affiliate. Archive it when it is no longer relevant.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={addEvent} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="evt-title">Event title *</Label>
-              <Input
-                id="evt-title"
-                required
-                value={eventForm.title}
-                onChange={(e) => setEventForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="e.g. Affiliate Secretaries Forum"
-                disabled={modalBusy}
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="evt-date">Date label *</Label>
-                <Input
-                  id="evt-date"
-                  required
-                  value={eventForm.date}
-                  onChange={(e) => setEventForm((f) => ({ ...f, date: e.target.value }))}
-                  placeholder="18 Nov"
-                  disabled={modalBusy}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="evt-kind">Kind</Label>
-                <select
-                  id="evt-kind"
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  value={eventForm.kind}
-                  onChange={(e) => setEventForm((f) => ({ ...f, kind: e.target.value }))}
-                  disabled={modalBusy}
-                >
-                  <option>Meeting</option>
-                  <option>Conference</option>
-                  <option>Workshop</option>
-                  <option>Training</option>
-                  <option>Other</option>
-                </select>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="evt-place">Place *</Label>
-              <Input
-                id="evt-place"
-                required
-                value={eventForm.place}
-                onChange={(e) => setEventForm((f) => ({ ...f, place: e.target.value }))}
-                placeholder="TUCOSWA House, Mbabane"
-                disabled={modalBusy}
-              />
-            </div>
-            <div className="flex justify-end gap-2 border-t pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={modalBusy}
-                onClick={() => setShowAddEvent(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={modalBusy || !eventForm.title.trim() || !eventForm.date.trim()}
-              >
-                {modalBusy ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving…
-                  </>
-                ) : (
-                  'Add event'
-                )}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </div>
+    </AffiliateCanManageContext.Provider>
   )
 }
+
+export default AffiliateDashboardPage
 
 function Metric({
   icon: Icon,

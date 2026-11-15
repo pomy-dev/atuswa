@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/spinner'
 import { Affiliate, AffiliateStatus, FinancialStanding } from '@/lib/types'
 
-export type AffiliateDraft = Omit<Affiliate, 'id' | 'created_at' | 'updated_at' | 'status_history' | 'documents' | 'active'> & { documentNames?: string }
+export type AffiliateDraft = Omit<Affiliate, 'id' | 'created_at' | 'updated_at' | 'status_history' | 'documents' | 'active'> & { documentFiles?: File[] }
 
 interface RegisterAffiliateModalProps {
   open: boolean
@@ -25,13 +25,13 @@ type FormData = {
   correspondenceName: string; correspondenceEmail: string; correspondencePhone: string
   presidentName: string; secretaryName: string; treasurerName: string; lastCongressDate: string; constitutionVersion: string; executiveCommitteeSize: string
   declaredMembership: string; paidUpMembership: string; femaleMembers: string; maleMembers: string; otherMembers: string; ageGroups: string; sectors: string; regions: string; shopStewards: string
-  duesRate: string; paymentHistory: string; financialStanding: FinancialStanding; bankDetails: string; status: AffiliateStatus; notes: string; documentNames: string
+  duesRate: string; paymentHistory: string; financialStanding: FinancialStanding; bankDetails: string; status: AffiliateStatus; notes: string
 }
 
 const emptyForm: FormData = {
   affiliateId: '', officialName: '', acronym: '', registrationNumber: '', affiliationDate: new Date().toISOString().split('T')[0], foundingDate: '', physicalAddress: '', postalAddress: '', phoneNumbers: '', email: '', website: '', socialMedia: '',
   correspondenceName: '', correspondenceEmail: '', correspondencePhone: '', presidentName: '', secretaryName: '', treasurerName: '', lastCongressDate: '', constitutionVersion: '', executiveCommitteeSize: '0',
-  declaredMembership: '0', paidUpMembership: '0', femaleMembers: '0', maleMembers: '0', otherMembers: '0', ageGroups: '', sectors: '', regions: '', shopStewards: '0', duesRate: '', paymentHistory: '', financialStanding: 'Good standing', bankDetails: '', status: 'Provisional', notes: '', documentNames: ''
+  declaredMembership: '0', paidUpMembership: '0', femaleMembers: '0', maleMembers: '0', otherMembers: '0', ageGroups: '', sectors: '', regions: '', shopStewards: '0', duesRate: '', paymentHistory: '', financialStanding: 'Good standing', bankDetails: '', status: 'Provisional', notes: ''
 }
 
 function toForm(affiliate?: Affiliate | null): FormData {
@@ -73,8 +73,7 @@ function toForm(affiliate?: Affiliate | null): FormData {
     financialStanding: affiliate.financial_standing,
     bankDetails: affiliate.bank_details || '',
     status: affiliate.status,
-    notes: affiliate.notes || '',
-    documentNames: affiliate.documents.map(document => document.name).join(', ')
+    notes: affiliate.notes || ''
   }
 }
 
@@ -83,16 +82,20 @@ const numberValue = (value: string) => Number.parseInt(value, 10) || 0
 
 export function RegisterAffiliateModal({ open, onOpenChange, onSubmit, initialAffiliate, isLoading }: RegisterAffiliateModalProps) {
   const [formData, setFormData] = useState<FormData>(emptyForm)
+  const [documentFiles, setDocumentFiles] = useState<File[]>([])
 
   useEffect(() => {
-    if (open) setFormData(toForm(initialAffiliate))
+    if (open) {
+      setFormData(toForm(initialAffiliate))
+      setDocumentFiles([])
+    }
   }, [open, initialAffiliate])
 
   const update = (key: keyof FormData, value: string) => setFormData(previous => ({ ...previous, [key]: value }))
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
-    if (!formData.officialName.trim() || !formData.acronym.trim() || !formData.physicalAddress.trim() || !formData.correspondenceName.trim()) {
+    if (!formData.officialName.trim() || !formData.acronym.trim() || !formData.physicalAddress.trim()) {
       alert('Please complete the official name, acronym, physical address, and correspondence contact.')
       return
     }
@@ -104,7 +107,7 @@ export function RegisterAffiliateModal({ open, onOpenChange, onSubmit, initialAf
     ].filter(item => item.name.trim())
 
     onSubmit({
-      affiliate_id: formData.affiliateId.trim() || `TUC-AFF-${Date.now().toString().slice(-4)}`,
+      affiliate_id: `TUC-AFF-${Date.now().toString().slice(-4)}`,
       official_name: formData.officialName.trim(),
       acronym: formData.acronym.trim().toUpperCase(),
       registration_number: formData.registrationNumber.trim(),
@@ -137,11 +140,11 @@ export function RegisterAffiliateModal({ open, onOpenChange, onSubmit, initialAf
       shop_stewards: numberValue(formData.shopStewards),
       dues_rate: formData.duesRate.trim(),
       payment_history: formData.paymentHistory.trim(),
-      financial_standing: formData.financialStanding,
+      financial_standing: "Suspended",
       bank_details: formData.bankDetails.trim(),
-      status: formData.status,
+      status: "Provisional",
       notes: formData.notes.trim(),
-      documentNames: formData.documentNames.trim()
+      documentFiles
     })
     !isLoading && onOpenChange(false)
   }
@@ -168,7 +171,6 @@ export function RegisterAffiliateModal({ open, onOpenChange, onSubmit, initialAf
               <p className="text-sm text-muted-foreground">The master record for a TUCOSWA affiliate.</p>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
-              {/* {field('affiliateId', 'Unique Affiliate ID', { placeholder: 'Generated if blank' })} */}
               {field('officialName', 'Official Name *', { required: true, className: 'md:col-span-2' })}
               {field('acronym', 'Acronym *', { required: true })}
               {field('registrationNumber', 'Incorporation Number')}
@@ -186,14 +188,14 @@ export function RegisterAffiliateModal({ open, onOpenChange, onSubmit, initialAf
               {field('website', 'Website')}
               {field('socialMedia', 'Social Media Handles')}
             </div>
-            <div className="rounded-xl border border-border bg-muted/30 p-4">
+            {/* <div className="rounded-xl border border-border bg-muted/30 p-4">
               <p className="mb-3 text-sm font-semibold">Official correspondence contact</p>
               <div className="grid gap-4 md:grid-cols-3">
                 {field('correspondenceName', 'Name *', { required: true })}
                 {field('correspondenceEmail', 'Email', { type: 'email' })}
                 {field('correspondencePhone', 'Phone', { type: 'tel' })}
               </div>
-            </div>
+            </div> */}
           </section>
           <section className="space-y-4">
             <h3 className="font-semibold text-foreground">Leadership & governance</h3>
@@ -209,7 +211,7 @@ export function RegisterAffiliateModal({ open, onOpenChange, onSubmit, initialAf
           <section className="space-y-4">
             <h3 className="font-semibold text-foreground">Membership & sectors</h3>
             <div className="grid gap-4 md:grid-cols-4">
-              {field('declaredMembership', 'Declared Membership', { type: 'number', min: 0 })}
+              {field('declaredMembership', '∑ Membership', { type: 'number', min: 0 })}
               {field('paidUpMembership', 'Paid-up Membership', { type: 'number', min: 0 })}
               {field('femaleMembers', 'Women Members', { type: 'number', min: 0 })}
               {field('maleMembers', 'Men Members', { type: 'number', min: 0 })}
@@ -226,26 +228,25 @@ export function RegisterAffiliateModal({ open, onOpenChange, onSubmit, initialAf
               {field('duesRate', 'Subscription')}
               {field('paymentHistory', 'Payment History', { placeholder: 'Current through September 2026' })}
               {field('bankDetails', 'Bank details / payment reference')}
-              {field('documentNames', 'Document Register', { placeholder: 'Constitution.pdf, registration certificate.pdf' })}
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="financialStanding">Financial standing</Label>
-                <select id="financialStanding" value={formData.financialStanding} onChange={event => update('financialStanding', event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option>Good standing</option>
-                  <option>Arrears</option>
-                  <option>Suspended</option>
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="status">Affiliation status</Label>
-                <select id="status" value={formData.status} onChange={event => update('status', event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option>Provisional</option>
-                  <option>Active</option>
-                  <option>Suspended</option>
-                  <option>Expelled</option>
-                  <option>Withdrawn</option>
-                </select>
+                <Label htmlFor="documentFiles">Document Register</Label>
+                <Input
+                  key={open ? 'document-files-open' : 'document-files-closed'}
+                  id="documentFiles"
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  disabled={isLoading}
+                  onChange={event => setDocumentFiles(Array.from(event.target.files ?? []))}
+                />
+                {initialAffiliate?.documents.length ? (
+                  <p className="text-xs text-muted-foreground">
+                    Existing documents: {initialAffiliate.documents.map(document => document.name).join(', ')}
+                  </p>
+                ) : null}
+                {documentFiles.length > 0 && (
+                  <p className="text-xs text-muted-foreground">Selected: {documentFiles.map(file => file.name).join(', ')}</p>
+                )}
               </div>
             </div>
           </section>

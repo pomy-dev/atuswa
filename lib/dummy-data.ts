@@ -119,7 +119,51 @@ export const dummyAffiliates: Affiliate[] = [
     lastCongressDate: '2024-05-10', constitutionVersion: '2024 revision', executiveCommitteeSize: 9, declaredMembership: 3100, paidUpMembership: 2400, genderBreakdown: { female: 620, male: 2400, other: 80 }, ageGroups: '18–30: 410; 31–50: 1,980; 51+: 710', sectors: ['Transport', 'Communications'], regions: ['Manzini', 'Hhohho'], shopStewards: 66, duesRate: 'E50 per month', paymentHistory: 'Two months outstanding', financialStanding: 'Arrears' as FinancialStanding, bankDetails: 'Pending verification', status: 'Provisional' as AffiliateStatus, statusHistory: [{ status: 'Provisional' as AffiliateStatus, reason: 'Awaiting updated financial statements', changedAt: new Date('2026-04-01'), changedBy: 'user_1' }], documents: [], notes: 'Follow up on audited statements and dues reconciliation.', active: true, createdAt: new Date('2012-01-15'), updatedAt: new Date('2026-10-01')
   },
   {
-    id: 'affiliate_3', affiliateId: 'TUC-AFF-003', officialName: 'Eswatini Textile and Garment Workers Union', acronym: 'ETGWU', registrationNumber: 'REG-2006-087', affiliationDate: '2016-03-22', foundingDate: '2006-11-04', physicalAddress: 'Matsapha Textile Park', postalAddress: 'P.O. Box 818, Matsapha', phoneNumbers: ['+268 2518 9090'], email: 'admin@etgwu.org.sz', website: '', socialMedia: '@ETGWU', correspondenceContact: { name: 'Nokuthula Mamba', email: 'admin@etgwu.org.sz', phone: '+268 7912 4455' }, leadership: [{ position: 'President', name: 'Nokuthula Mamba', termOfOffice: '2025–2028' }], lastCongressDate: '2025-02-14', constitutionVersion: '2025 revision', executiveCommitteeSize: 7, declaredMembership: 1850, paidUpMembership: 1850, genderBreakdown: { female: 1200, male: 610, other: 40 }, ageGroups: '18–30: 780; 31–50: 920; 51+: 150', sectors: ['Manufacturing', 'Textiles'], regions: ['Manzini'], shopStewards: 42, duesRate: 'E25 per month', paymentHistory: 'Up to date through September 2026', financialStanding: 'Good standing' as FinancialStanding, bankDetails: 'On file with national office', status: 'Active' as AffiliateStatus, statusHistory: [{ status: 'Active' as AffiliateStatus, reason: 'Annual compliance review completed', changedAt: new Date('2026-02-20'), changedBy: 'user_1' }], documents: [], notes: '', active: true, createdAt: new Date('2016-03-22'), updatedAt: new Date('2026-09-30')
+    id: 'affiliate_3',
+    affiliateId: 'TUC-AFF-003',
+    officialName: 'Eswatini Textile and Garment Workers Union',
+    acronym: 'ETGWU',
+    registrationNumber: 'REG-2006-087',
+    affiliationDate: '2016-03-22',
+    foundingDate: '2006-11-04',
+    physicalAddress: 'Matsapha Textile Park',
+    postalAddress: 'P.O. Box 818, Matsapha',
+    phoneNumbers: ['+268 2518 9090'],
+    email: 'admin@etgwu.org.sz',
+    website: '', socialMedia: '@ETGWU',
+    correspondenceContact: {
+      name: 'Nokuthula Mamba',
+      email: 'admin@etgwu.org.sz',
+      phone: '+268 7912 4455'
+    },
+    leadership: [{
+      position: 'President',
+      name: 'Nokuthula Mamba',
+      termOfOffice: '2025–2028'
+    }],
+    lastCongressDate: '2025-02-14',
+    constitutionVersion: '2025 revision',
+    executiveCommitteeSize: 7,
+    declaredMembership: 1850,
+    paidUpMembership: 1850,
+    genderBreakdown: { female: 1200, male: 610, other: 40 },
+    ageGroups: '18–30: 780; 31–50: 920; 51+: 150',
+    sectors: ['Manufacturing', 'Textiles'],
+    regions: ['Manzini'],
+    shopStewards: 42,
+    duesRate: 'E25 per month',
+    paymentHistory: 'Up to date through September 2026',
+    financialStanding: 'Good standing' as FinancialStanding,
+    bankDetails: 'On file with national office',
+    status: 'Active' as AffiliateStatus,
+    statusHistory: [{
+      status: 'Active' as AffiliateStatus, reason: 'Annual compliance review completed',
+      changedAt: new Date('2026-02-20'),
+      changedBy: 'user_1'
+    }],
+    documents: [], notes: '',
+    active: true, createdAt: new Date('2016-03-22'),
+    updatedAt: new Date('2026-09-30')
   }
 ]
 

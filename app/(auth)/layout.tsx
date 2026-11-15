@@ -21,12 +21,24 @@ export default function AuthLayout({
 
     if (!isLoading && !isAuthenticated) {
       router.push('/login')
+      return
     }
-  }, [isLoading, isAuthenticated, pathname, router])
+    const roleName = user?.role.toLowerCase().replaceAll('_', ' ').trim()
+    if (!isLoading && isAuthenticated && roleName === 'affiliate secretary' && pathname !== '/affiliate') {
+      router.replace('/affiliate')
+    }
+    if (!isLoading && isAuthenticated && roleName === 'secretary general' && pathname === '/affiliate') {
+      router.replace('/members')
+    }
+  }, [isLoading, isAuthenticated, pathname, router, user?.role])
 
   // Invitation confirmation is a standalone public page, not part of the app shell.
   if (pathname === '/confirm') {
     return <>{children}</>
+  }
+
+  if (!isLoading && isAuthenticated && user?.role.toLowerCase().replaceAll('_', ' ').trim() === 'affiliate secretary') {
+    return <><main className="min-h-screen">{children}</main><Toaster richColors closeButton /></>
   }
 
   if (isLoading || !isAuthenticated) {

@@ -169,6 +169,7 @@ create table if not exists public.projects (
   branch_id text references public.branches(id) on delete set null,
   affiliate_id text references public.affiliates(id) on delete set null,
   title text not null, description text not null default '', coordinator text not null default '',
+  progress integer not null default 0 check (progress between 0 and 100), archived boolean not null default false,
   status text not null default 'planning' check (status in ('starting','in_progress','finished','planning','ongoing','completed')),
   budget numeric(14,2) not null default 0 check (budget >= 0), timeline text not null default '',
   start_date date, end_date date, created_by uuid references public.profiles(id) on delete set null,
@@ -203,6 +204,7 @@ create table if not exists public.events (
   branch_id text references public.branches(id) on delete set null,
   affiliate_id text references public.affiliates(id) on delete set null,
   title text not null, notes text not null default '', event_date timestamptz not null,
+  event_kind text not null default 'Event', archived boolean not null default false,
   location text not null default '', stakeholders text[] not null default '{}',
   created_by uuid references public.profiles(id) on delete set null,
   created_at timestamptz not null default now(), updated_at timestamptz not null default now()

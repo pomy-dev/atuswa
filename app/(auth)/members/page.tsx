@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,7 +23,7 @@ import { MemberRecordModal } from '@/components/modals/member-record-modal'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { canSee, recordActivityLog } from '@/lib/constants'
 import { useUserIP } from '@/lib/userUserIp'
-import { getAllRoles, getAllPermissions } from '@/services/auth-services'
+import { getAllRoles, getAllPermissions, updateUserAccount } from '@/services/auth-services'
 import {
   createAffiliate, createAffiliateDocument, createAffiliateLeadership,
   createAffiliatePayment, createAffiliateNotification, createAffiliateLink,
@@ -33,19 +34,24 @@ import {
   getAllAffiliates, getAllMembers, getAffiliateLinks, getMemberTransferRequests,
   updateAffiliate, updateAffiliateDocument, updateAffiliateStatusRequest,
   updateMember, approveMemberTransfer,
-  rejectMemberTransfer,
+  rejectMemberTransfer, uploadAffiliateDocument,
 } from '@/services/affiliate-service'
+import { getAllUsersWithRoles } from '@/services/auth-services'
 import { toast } from 'sonner'
+import { Spinner } from '@/components/ui/spinner'
+import { AppUser } from '@/lib/types'
 
 const statusStyles: Record<AffiliateStatus, string> = { Active: 'bg-emerald-100 text-emerald-800', Provisional: 'bg-amber-100 text-amber-800', Suspended: 'bg-orange-100 text-orange-800', Expelled: 'bg-red-100 text-red-800', Withdrawn: 'bg-slate-100 text-slate-700' }
 const financialStyles: Record<FinancialStanding, string> = { 'Good standing': 'bg-emerald-100 text-emerald-800', Arrears: 'bg-amber-100 text-amber-800', Suspended: 'bg-red-100 text-red-800' }
-const listFrom = (value?: string) => value ? value.split(',').map(item => item.trim()).filter(Boolean) : []
 const csvDownload = (filename: string, rows: unknown[][]) => { const csv = rows.map(row => row.map(value => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n'); const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); link.download = filename; link.click(); URL.revokeObjectURL(link.href) }
 const textDownload = (filename: string, content: string, type = 'text/plain') => { const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([content], { type })); link.download = filename; link.click(); URL.revokeObjectURL(link.href) }
 
 export default function MembersPage() {
+  const router = useRouter()
   const { user } = useAuth()
+  const isSecretaryGeneral = user?.role.toLowerCase().replaceAll('_', ' ').trim() === 'secretary general'
   const { ip } = useUserIP()
+  const [users, setUsers] = useState<AppUser[]>([])
   const [view, setView] = useState<'affiliates' | 'workers'>('affiliates')
   const [affiliates, setAffiliates] = useState<Affiliate[]>([])
   const [members, setMembers] = useState<Member[]>([])
@@ -95,7 +101,31 @@ export default function MembersPage() {
       }
     }
 
+    const loadAllSystemUsers = async () => {
+      try {
+        const supabase = getSupabaseBrowserClient()
+        if (!supabase) throw new Error('Supabase is not configured.')
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
+        if (error) throw error
+        if (!session) return
+
+        const loadedUsers = await getAllUsersWithRoles(supabase, session)
+
+        if (!cancelled) {
+          setUsers(loadedUsers!)
+        }
+      } catch (error) {
+        toast.success(`Failed to load users: ${error}`)
+      }
+    }
+
     void loadRolesAndPermissions().catch((error: unknown) => {
+      console.error('Unable to load roles and permissions:', error)
+    })
+    void loadAllSystemUsers().catch((error: unknown) => {
       console.error('Unable to load roles and permissions:', error)
     })
 
@@ -126,7 +156,7 @@ export default function MembersPage() {
         }))
         if (cancelled) return
         setAffiliates(loadedAffiliates as Affiliate[])
-        setMembers(memberRows.filter(member => user.role === UserRole.SECRETARY_GENERAL || member.branch_id === user.branchId).map((member: any) => ({ ...member, dob: member.date_of_birth ?? '', jobCategory: member.job_category, subscriptionStatus: member.subscription_status, tucoswaStatus: member.tucoswa_status })) as Member[])
+        setMembers(memberRows.filter(member => isSecretaryGeneral || member.branch_id === user.branchId).map((member: any) => ({ ...member, dob: member.date_of_birth ?? '', jobCategory: member.job_category, subscriptionStatus: member.subscription_status, tucoswaStatus: member.tucoswa_status })) as Member[])
         setStatusRequests(statusRows.map((row: any) => ({ ...row, affiliateId: row.affiliate_id, affiliateName: affiliateRows.find(a => a.id === row.affiliate_id)?.acronym, currentStatus: affiliateRows.find(a => a.id === row.affiliate_id)?.status, requestedStatus: row.requested_status, requestedBy: row.requested_by })))
         setTransferRequests(transferRows.map((row: any) => ({ ...row, memberId: row.member_id, memberName: memberRows.find(m => m.id === row.member_id)?.name, fromAffiliateId: row.from_affiliate_id, toAffiliateId: row.to_affiliate_id })))
       } catch (error) { console.error('Unable to load members and affiliates:', error) }
@@ -134,7 +164,7 @@ export default function MembersPage() {
     }
     void loadData()
     return () => { cancelled = true }
-  }, [user?.branchId, user?.role])
+  }, [user?.branchId, user?.role, isSecretaryGeneral])
 
   useEffect(() => {
     if (!selectedAffiliate) { setAffiliateLinks([]); return }
@@ -186,12 +216,12 @@ export default function MembersPage() {
     return client
   }
   const persistAffiliates = (next: Affiliate[]) => setAffiliates(next)
-  const persistMembers = (next: Member[]) => setMembers(next.filter(member => user?.role === "Secretary General" || member.branch_id === user?.branchId))
+  const persistMembers = (next: Member[]) => setMembers(next.filter(member => isSecretaryGeneral || member.branch_id === user?.branchId))
 
   const handleAffiliateSubmit = async (draft: AffiliateDraft) => {
     setIsLoading(true);
     try {
-      const { documentNames, ...data } = draft;
+      const { documentFiles = [], ...data } = draft;
       const existing = editingAffiliate;
       const client = supabase()
       const payload: any = {
@@ -200,7 +230,8 @@ export default function MembersPage() {
         founding_date: data.founding_date || null, physical_address: data.physical_address,
         postal_address: data.postal_address || null, phone_numbers: data.phone_numbers,
         email: data.email || null, website: data.website || null, social_media: data.social_media || null,
-        correspondence_contact: data.correspondence_contact, last_congress_date: data.last_congress_date || null,
+        correspondence_contact: data.correspondence_contact,
+        last_congress_date: data.last_congress_date || null,
         constitution_version: data.constitution_version || null, executive_committee_size: data.executive_committee_size,
         declared_membership: data.declared_membership, paid_up_membership: data.paid_up_membership,
         gender_breakdown: data.gender_breakdown, age_groups: data.age_groups || null, sectors: data.sectors,
@@ -216,7 +247,7 @@ export default function MembersPage() {
         await Promise.all(data.leadership.map(item => createAffiliateLeadership(client, { ...item, affiliate_id: id } as any)))
       }
       if (!existing) await createAffiliateStatusHistory(client, { affiliate_id: id, status: data.status, reason: 'Initial affiliate registration', changed_by: user?.name })
-      if (documentNames?.trim()) await Promise.all(listFrom(documentNames).map(name => createAffiliateDocument(client, { affiliate_id: id, name, category: 'Other' } as any)))
+      if (documentFiles.length) await Promise.all(documentFiles.map(file => uploadAffiliateDocument(client, id, file)))
       const [leadership, documents, status_history] = await Promise.all([getAffiliateLeadership(client, id), getAffiliateDocuments(client, id), getAffiliateStatusHistory(client, id)])
       const complete = { ...saved, leadership, documents, status_history } as Affiliate
       persistAffiliates(existing ? affiliates.map(item => item.id === id ? complete : item) : [complete, ...affiliates])
@@ -231,8 +262,7 @@ export default function MembersPage() {
     } catch (error) {
       console.error('Unable to save affiliate:', error);
       toast.error(error instanceof Error ? error.message : 'Unable to save affiliate.')
-    }
-    finally { setIsLoading(false) }
+    } finally { setIsLoading(false) }
   }
 
   const requestStatusChange = async (affiliate: Affiliate, requestedStatus: AffiliateStatus) => {
@@ -312,12 +342,16 @@ export default function MembersPage() {
 
   const handleAffiliateAction = async (payload: Record<string, string>) => {
     if (!selectedAffiliate || !affiliateAction) return;
+    const { data: { session }, error } = await supabase().auth.getSession()
+    if (error) throw error
+    if (!session) return
+
     const now = new Date();
     if (affiliateAction === 'payment') {
       await createAffiliatePayment(supabase(), { affiliate_id: selectedAffiliate.id, amount: Number(payload.amount), payment_date: payload.period || null, reference: payload.reference || null, notes: payload.fileName ? `Receipt: ${payload.fileName}` : null, recorded_by: user?.name } as any)
       await updateAffiliate(supabase(), selectedAffiliate.id, { payment_history: `${selectedAffiliate.payment_history || ''} ${payload.period}: E${payload.amount} (${payload.reference || 'no reference'}).`, financial_standing: 'Good standing', updated_at: new Date() })
       await reloadAffiliate(selectedAffiliate.id)
-      alert('Payment recorded and financial standing updated.')
+      toast.success('Payment recorded and financial standing updated.')
       recordActivityLog('Record', `Payment recorded & update standing balance`, user?.id, user?.name, ip!)
     } else if (affiliateAction === 'document') {
       const document: AffiliateDocument = {
@@ -331,10 +365,25 @@ export default function MembersPage() {
       setAffiliates(previous => previous.map(item => item.id === selectedAffiliate.id ? { ...item, documents: [...item.documents, saved as AffiliateDocument] } : item))
     } else if (affiliateAction === 'notify') {
       await createAffiliateNotification(supabase(), { affiliate_id: selectedAffiliate.id, subject: payload.subject, message: payload.message, status: 'Queued', queued_by: user?.name } as any)
-      alert('Notification queued for delivery.')
+      toast.success('Notification queued for delivery.')
     } else if (affiliateAction === 'link') {
-      await createAffiliateLink(supabase(), { affiliate_id: selectedAffiliate.id, link_type: payload.linkType, target_id: payload.targetId, relation: payload.relation, linked_by: user?.name } as any)
-      alert('Record linked to affiliate.')
+      let updatedUser;
+      await createAffiliateLink(supabase(),
+        {
+          affiliate_id: selectedAffiliate.id,
+          link_type: payload.linkType,
+          target_id: payload.targetId,
+          relation: payload.relation,
+          linked_by: user?.name
+        } as any)
+
+      if (payload.linkType.toLowerCase() === "Admin".toLowerCase()) {
+        updatedUser = await updateUserAccount(supabase(), session, {
+          user_id: payload.targetId,
+          affiliate_id: selectedAffiliate.id
+        })
+      }
+      updatedUser ? toast.success(`${users.find(u => u.id === payload.targetId)?.full_name} linked as Admin to affiliate.`) : toast.success('Record linked to affiliate.')
     } else if (affiliateAction === 'report') generateReport(selectedAffiliate, payload.reportType);
     setAffiliateAction(null)
     await reloadAffiliate(selectedAffiliate.id)
@@ -342,10 +391,22 @@ export default function MembersPage() {
   const documentAction = async (action: 'archive' | 'share', document: AffiliateDocument) => { if (!selectedAffiliate) return; if (action === 'share') { const text = `${selectedAffiliate.acronym}: ${document.name}${document.version ? ` (${document.version})` : ''}`; navigator.clipboard?.writeText(text); alert('Document reference copied for sharing.') } else { await updateAffiliateDocument(supabase(), document.id, { archived_at: new Date().toISOString(), archived_by: user?.name } as any); setAffiliates(previous => previous.map(item => item.id === selectedAffiliate.id ? { ...item, documents: item.documents.filter(doc => doc.id !== document.id) } : item)) } }
 
   const unlinkRecord = async (link: any) => {
-    await deleteAffiliateLink(supabase(), link.id)
-    alert('Record unlinked from affiliate.')
+    // setIsLoading(true)
+    const { data: { session }, error } = await supabase().auth.getSession()
+    try {
+      if (link.link_type.toLowerCase() === "admin".toLowerCase()) {
+        const updatedUser = await updateUserAccount(supabase(), session, {
+          user_id: link.target_id,
+          affiliate_id: "Null"
+        })
+      }
+      await deleteAffiliateLink(supabase(), link.id)
+      toast.success('Record unlinked from affiliate.')
 
-    recordActivityLog('Unlink', `Unlinked record - ${link.category}`, user?.id, user?.name, ip!)
+      recordActivityLog('Unlink', `Unlinked record - ${link?.link_type}`, user?.id, user?.name, ip!)
+    } catch (err) {
+      toast.error(`Failed to unlink record: ${err}`)
+    }
   }
 
   const requestTransfer = async (member: Member, affiliateId: string, reason: string) => {
@@ -532,7 +593,7 @@ export default function MembersPage() {
 
           <TableBody>
             {pagedAffiliates.map(affiliate =>
-              <TableRow key={affiliate.id}>
+              <TableRow key={affiliate.id} className="cursor-pointer" onClick={() => router.push(`/affiliate/${affiliate.id}`)}>
                 <TableCell>
                   <div className="font-semibold">{affiliate.acronym}</div>
                   <div className="text-xs text-muted-foreground">{affiliate.official_name}</div>
@@ -558,7 +619,7 @@ export default function MembersPage() {
                 </TableCell>
 
                 <TableCell>
-                  <div className="flex flex-wrap justify-end gap-1">
+                  <div className="flex flex-wrap justify-end gap-1" onClick={event => event.stopPropagation()}>
                     <Button variant="ghost" size="sm" title="Edit affiliate" onClick={() => { setEditingAffiliate(affiliate); setShowAffiliateModal(true) }}>
                       <FilePenLine className="h-4 w-4" />
                     </Button>
@@ -587,11 +648,17 @@ export default function MembersPage() {
             )}
           </TableBody>
         </Table>
-        {pagedAffiliates.length === 0 && (
+        {isLoading ? (
           <Card>
-            <CardContent className="py-10 text-center text-muted-foreground">No affiliate records match these filters.</CardContent>
+            <CardContent className="flex flex-wrap items-center justify-center py-10 text-center text-muted-foreground">
+              <Spinner className='h-4 w-4' />&nbsp;Loading...</CardContent>
           </Card>
-        )}
+        ) :
+          (!isLoading && pagedAffiliates.length === 0) && (
+            <Card>
+              <CardContent className="py-10 text-center text-muted-foreground">No affiliate records match these filters.</CardContent>
+            </Card>
+          )}
       </div>
         :
         <div className="overflow-x-auto">
@@ -680,7 +747,7 @@ export default function MembersPage() {
       <AffiliateActionsModal open={Boolean(affiliateAction)}
         action={affiliateAction} affiliate={selectedAffiliate}
         affiliates={affiliates} links={affiliateLinks}
-
+        users={users}
         onOpenChange={open => {
           if (!open) { setAffiliateAction(null); setSelectedAffiliate(null) }
         }}

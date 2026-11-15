@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Affiliate, AffiliateDocument } from '@/lib/types'
+import { Affiliate, AffiliateDocument, AppUser } from '@/lib/types'
 import {
   CreditCard, FileText, Bell, Link2, BarChart3, Upload, ImageIcon,
   File, Loader2, X, Share2, Archive, Unlink,
@@ -29,11 +29,20 @@ interface AffiliateActionsModalProps {
   affiliate: Affiliate | null
   affiliates: Affiliate[]
   links: any[]
+  users?: AppUser[]
   onOpenChange: (open: boolean) => void
   onSubmit: (payload: AffiliateActionPayload) => void | Promise<void>
   onDocumentAction: (action: 'archive' | 'share', document: AffiliateDocument) => void
   onLinkAction: (action: 'unlink', link: any) => void
 }
+
+const linkTypeOptions = [
+  { value: 'admin', label: 'Admin' },
+  { value: 'member', label: 'Member' },
+  { value: 'branch', label: 'Branch' },
+  { value: 'shop-steward', label: 'Shop steward' },
+  { value: 'employer', label: 'Bargaining unit' },
+] as const
 
 const emptyForm = {
   amount: '',
@@ -210,6 +219,7 @@ export function AffiliateActionsModal({
   affiliate,
   affiliates,
   links,
+  users = [],
   onOpenChange,
   onSubmit,
   onDocumentAction,
@@ -245,6 +255,16 @@ export function AffiliateActionsModal({
 
   const meta = actionMeta[action]
   const Icon = meta.icon
+
+  const setLinkType = (value: string) => {
+    setForm((previous) => ({
+      ...previous,
+      linkType: value,
+      targetId: '',
+    }))
+  }
+
+  const filteredUsers = users.filter((u) => u.role?.name === "Affiliate Secretary")
 
   const readFileAsDataUrl = (selected: File) =>
     new Promise<string>((resolve, reject) => {
@@ -524,23 +544,60 @@ export function AffiliateActionsModal({
           )}
 
           {action === 'link' && (
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-5">
+              <fieldset className="space-y-3">
+                <legend className="text-sm font-medium leading-none">Record type</legend>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+                  {linkTypeOptions.map((option) => {
+                    const selected = form.linkType === option.value
+                    return (
+                      <label
+                        key={option.value}
+                        className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border px-2 py-3 text-center transition-colors ${selected
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                          : 'border-border bg-background hover:border-primary/40 hover:bg-muted/40'
+                          } ${isSubmitting ? 'pointer-events-none opacity-60' : ''}`}
+                      >
+                        <span className="text-xs font-medium text-foreground">{option.label}</span>
+                        <input
+                          type="radio"
+                          name="linkType"
+                          value={option.value}
+                          checked={selected}
+                          disabled={isSubmitting}
+                          onChange={() => setLinkType(option.value)}
+                          className="h-4 w-4 accent-primary"
+                        />
+                      </label>
+                    )
+                  })}
+                </div>
+              </fieldset>
+
+              {form.linkType === 'admin' ? (
                 <div className="space-y-1.5">
-                  <Label htmlFor="linkType">Record type</Label>
+                  <Label htmlFor="targetUser">Affiliate Admin user *</Label>
                   <select
-                    id="linkType"
-                    disabled={isSubmitting}
-                    value={form.linkType}
-                    onChange={(event) => update('linkType', event.target.value)}
+                    id="targetUser"
+                    required
+                    disabled={isSubmitting || users.length === 0}
+                    value={form.targetId}
+                    onChange={(event) => update('targetId', event.target.value)}
                     className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   >
-                    <option value="member">Member / worker</option>
-                    <option value="branch">Branch / region</option>
-                    <option value="shop-steward">Shop steward</option>
-                    <option value="employer">Employer / bargaining unit</option>
+                    <option value="">
+                      {filteredUsers.length === 0 ? 'No users available' : 'Select a user…'}
+                    </option>
+                    {filteredUsers.map((user) => (
+                      <option key={user.id} value={user?.id}>
+                        {user?.full_name}
+                        {user?.email ? ` · ${user?.email}` : ''}
+                        {user.role ? ` (${user?.role?.name})` : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
+              ) : (
                 <div className="space-y-1.5">
                   <Label htmlFor="targetId">Record ID or name *</Label>
                   <Input
@@ -549,15 +606,25 @@ export function AffiliateActionsModal({
                     disabled={isSubmitting}
                     value={form.targetId}
                     onChange={(event) => update('targetId', event.target.value)}
+                    placeholder={
+                      form.linkType === 'member'
+                        ? 'Member ID or full name'
+                        : form.linkType === 'branch'
+                          ? 'Branch ID or name'
+                          : form.linkType === 'shop-steward'
+                            ? 'Shop steward ID or name'
+                            : 'Employer / bargaining unit ID or name'
+                    }
                   />
                 </div>
-              </div>
+              )}
+
               <div className="space-y-1.5">
                 <Label htmlFor="relation">Relationship / notes</Label>
                 <Input
                   id="relation"
                   disabled={isSubmitting}
-                  placeholder="National shop steward, Manzini branch, bargaining unit"
+                  placeholder="National admin, Manzini branch, bargaining unit"
                   value={form.relation}
                   onChange={(event) => update('relation', event.target.value)}
                 />
@@ -573,7 +640,10 @@ export function AffiliateActionsModal({
                         className="flex items-center justify-between gap-2 py-2 text-sm first:pt-0 last:pb-0"
                       >
                         <span className="min-w-0 truncate">
-                          {link.link_type}: {link.target_id}
+                          {link.link_type ?? link.type}: {
+                            link.link_type.toLowerCase() === "admin".toLowerCase() ?
+                              users.find(u => u.id === (link.target_id ?? link.targetId))?.full_name
+                              : link.target_id ?? link.targetId}
                           {link.relation ? ` · ${link.relation}` : ''}
                         </span>
                         <Button

@@ -70,13 +70,13 @@ export const menuItems = [
     label: 'Overview',
     href: '/dashboard',
     icon: LayoutDashboard,
-    accesses: ['Overview', 'Branches', 'Users', 'Tucoswa Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
+    accesses: ['Overview', 'Branches', 'Users', 'Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
   },
   {
     label: 'Branches',
     href: '/branches',
     icon: Building2,
-    accesses: ['Overview', 'Branches', 'Users', 'Tucoswa Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
+    accesses: ['Overview', 'Branches', 'Users', 'Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
   },
   {
     label: 'Users',
@@ -85,10 +85,10 @@ export const menuItems = [
     accesses: ['Overview', 'Branches', 'Users', 'Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
   },
   {
-    label: 'Tucoswa Affiliates',
+    label: 'Affiliates',
     href: '/members',
     icon: Users,
-    accesses: ['Overview', 'Branches', 'Users', 'Tucoswa Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
+    accesses: ['Overview', 'Branches', 'Users', 'Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
   },
   {
     label: 'Affiliate Portal',
@@ -100,37 +100,37 @@ export const menuItems = [
     label: 'Financial',
     href: '/financial',
     icon: Currency,
-    accesses: ['Overview', 'Branches', 'Users', 'Tucoswa Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
+    accesses: ['Overview', 'Branches', 'Users', 'Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
   },
   {
     label: 'Projects',
     href: '/projects',
     icon: Briefcase,
-    accesses: ['Overview', 'Branches', 'Users', 'Tucoswa Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
+    accesses: ['Overview', 'Branches', 'Users', 'Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
   },
   {
     label: 'Events',
     href: '/events',
     icon: Calendar,
-    accesses: ['Overview', 'Branches', 'Users', 'Tucoswa Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
+    accesses: ['Overview', 'Branches', 'Users', 'Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
   },
   {
     label: 'Grievances',
     href: '/helpdesk',
     icon: LifeBuoy,
-    accesses: ['Overview', 'Branches', 'Users', 'Tucoswa Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
+    accesses: ['Overview', 'Branches', 'Users', 'Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
   },
   {
     label: 'E-Filing',
     href: '/e-filing',
     icon: FileText,
-    accesses: ['Overview', 'Branches', 'Users', 'Tucoswa Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
+    accesses: ['Overview', 'Branches', 'Users', 'Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
   },
   {
     label: 'Settings',
     href: '/settings',
     icon: Settings,
-    accesses: ['Overview', 'Branches', 'Users', 'Tucoswa Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
+    accesses: ['Overview', 'Branches', 'Users', 'Affiliates', 'Financial', 'Projects', 'Events', 'Grievances', 'E-Filing', 'Settings'],
   }
 ]
 
